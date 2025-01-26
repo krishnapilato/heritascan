@@ -8,6 +8,10 @@ HeritaScan is a powerful tool designed to streamline the process of capturing ph
 
 <img src="https://github.com/user-attachments/assets/b619af55-639d-4142-a921-8dffe4a45bc1" alt="Description" height="500">
 <img src="https://github.com/user-attachments/assets/7d0119c6-cb4a-4c96-8895-5a147b602564" alt="Description" height="500">
+<img src="https://github.com/user-attachments/assets/fd7e0e9c-363c-4ce8-aec6-c0ef95ba8665" alt="Description" height="500">
+<img src="https://github.com/user-attachments/assets/19176947-13b6-4dfb-a1a1-55824f31c642" alt="Description" height="500">
+
+
 
 ## Key Features
 
