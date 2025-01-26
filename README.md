@@ -6,11 +6,11 @@ A feature-rich Flutter application for capturing, managing, and organizing photo
 
 HeritaScan is a powerful tool designed to streamline the process of capturing photos, organizing them, and creating PDFs effortlessly. This application supports custom directories for photos and PDFs, making it easy to manage your content. It also offers an intuitive user interface for editing, deleting, and sharing files.
 
-<img src="https://github.com/user-attachments/assets/b619af55-639d-4142-a921-8dffe4a45bc1" alt="Description" height="500">
-<img src="https://github.com/user-attachments/assets/fd7e0e9c-363c-4ce8-aec6-c0ef95ba8665" alt="Description" height="500">
-<img src="https://github.com/user-attachments/assets/19176947-13b6-4dfb-a1a1-55824f31c642" alt="Description" height="500">
-
-
+<p align="center" width="100%">
+<img src="https://github.com/user-attachments/assets/b619af55-639d-4142-a921-8dffe4a45bc1" alt="Description" height="500" style="display: block; margin: auto;">
+<img src="https://github.com/user-attachments/assets/fd7e0e9c-363c-4ce8-aec6-c0ef95ba8665" alt="Description" height="500" style="display: block; margin: auto;">
+<img src="https://github.com/user-attachments/assets/19176947-13b6-4dfb-a1a1-55824f31c642" alt="Description" height="500" style="display: block; margin: auto;">
+</p>
 
 ## Key Features
 
