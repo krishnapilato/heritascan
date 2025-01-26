@@ -9,7 +9,6 @@ import 'package:image_editor_plus/image_editor_plus.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -283,29 +282,6 @@ class _MainScreenState extends State<MainScreen>
     });
   }
 
-  /// Requests necessary permissions (camera and storage).
-  Future<bool> _requestPermissions() async {
-    // Request camera permission.
-    var cameraStatus = await Permission.camera.status;
-    if (!cameraStatus.isGranted) {
-      cameraStatus = await Permission.camera.request();
-      if (!cameraStatus.isGranted) {
-        return false;
-      }
-    }
-
-    // Request storage permission.
-    var storageStatus = await Permission.storage.status;
-    if (!storageStatus.isGranted) {
-      storageStatus = await Permission.storage.request();
-      if (!storageStatus.isGranted) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
   /// Handles the photo capture process.
   Future<void> _takePhoto() async {
     try {
@@ -465,7 +441,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Set<int> _selectedIndices = {};
   bool _selectionMode = false;
-   bool _isLoading = false;
 
   /// Toggles the selection of a photo at the given index.
   void _toggleSelection(int index) {
@@ -485,10 +460,6 @@ class _HomeScreenState extends State<HomeScreen> {
 /// Generates a PDF from selected photos with a spinner while processing.
 Future<void> _generatePdf() async {
   if (_selectedIndices.isEmpty) return;
-
-  setState(() {
-    _isLoading = true; // Show spinner.
-  });
 
   try {
     final pdf = pw.Document();
@@ -517,8 +488,7 @@ Future<void> _generatePdf() async {
       await pdfDir.create(recursive: true);
     }
 
-    final file = File(
-        '${pdfDir.path}/photos_${DateTime.now().millisecondsSinceEpoch}.pdf');
+    final file = File('${pdfDir.path}/photos_${DateTime.now().millisecondsSinceEpoch}.pdf');
     await file.writeAsBytes(await pdf.save());
 
     setState(() {
@@ -536,10 +506,6 @@ Future<void> _generatePdf() async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Error generating PDF: $e')),
     );
-  } finally {
-    setState(() {
-      _isLoading = false; // Hide spinner.
-    });
   }
 }
 
@@ -781,6 +747,7 @@ Future<void> _generatePdf() async {
                               color: Theme.of(context)
                                   .colorScheme
                                   .primary
+                                  // ignore: deprecated_member_use
                                   .withOpacity(0.5),
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -1057,6 +1024,7 @@ class _FilesScreenState extends State<FilesScreen> {
                   onLongPress: () => _onPdfLongPress(index),
                   child: Container(
                     color: isSelected
+                        // ignore: deprecated_member_use
                         ? Theme.of(context).colorScheme.primary.withOpacity(0.3)
                         : Colors.transparent,
                     child: ListTile(
