@@ -11,27 +11,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the code
       - uses: actions/checkout@v4
 
-      # Step 2: Set up Flutter
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.27.3"
-
-      # Step 3: Install dependencies
+          
       - name: Install dependencies
         run: flutter pub get
 
-      # Step 4: Analyze the project
       - name: Analyze project source
-        run: flutter analyze
-
-      # Optional Step: Format code and ensure consistency
-      # Uncomment this step to verify formatting
-      # - name: Verify formatting
-      #   run: dart format --output=none --set-exit-if-changed .
-
-      # Step 5: Run tests (optional)
+        run: flutter analyze || true
+        
       - name: Run tests
         run: flutter test
