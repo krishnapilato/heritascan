@@ -1,5 +1,12 @@
 # HeritaScan
 
+![Flutter](https://img.shields.io/badge/Flutter-3.27.0-blue?logo=flutter&logoColor=white)
+![Dart](https://img.shields.io/badge/Dart-3.5.0-blue?logo=dart&logoColor=white)
+![Android](https://img.shields.io/badge/Android-15.0-green?logo=android&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Android-green?logo=android&logoColor=white)
+![Build](https://img.shields.io/badge/Build-Gradle-orange?logo=gradle&logoColor=white)
+![Material Design](https://img.shields.io/badge/Material%20Design-3.0-green?logo=material-design&logoColor=white)
+
 A feature-rich Flutter application for capturing, managing, and organizing photos, with seamless PDF generation and sharing capabilities.
 
 ## Overview
