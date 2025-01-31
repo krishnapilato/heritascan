@@ -11,6 +11,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lottie/lottie.dart'; // Example of an additional library
 
 void main() {
   runApp(const MyApp());
@@ -24,7 +25,30 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'HeritaScan',
+      themeMode: ThemeMode.system, // Follow system theme
       theme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.light,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1E88E5),
+          brightness: Brightness.light,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blueAccent,
+            foregroundColor: Colors.white,
+            padding:
+                const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+            textStyle: const TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        iconTheme: const IconThemeData(color: Colors.black),
+      ),
+      darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
         colorScheme: ColorScheme.fromSeed(
@@ -35,9 +59,10 @@ class MyApp extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            textStyle:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            padding:
+                const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+            textStyle: const TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -312,7 +337,13 @@ class _MainScreenState extends State<MainScreen>
         _savePhotos();
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Photo captured successfully!')),
+          SnackBar(
+            content: Row(
+              children: [
+                Expanded(child: Text('Photo captured successfully!'))
+              ],
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -335,7 +366,7 @@ class _MainScreenState extends State<MainScreen>
   @override
   Widget build(BuildContext context) {
     final List<Widget> screens = [
-      /// HomeScreen displays the grid of photos and provides options to edit, share, delete, and generate PDFs.
+      /// HomeScreen displays the grid of photos and provides options to edit, share, delete, generate PDFs, and **select all**.
       HomeScreen(
         photos: _photos,
         onSave: _savePhotos,
@@ -375,7 +406,13 @@ class _MainScreenState extends State<MainScreen>
                         ? 1 + _animationController.value * 0.2
                         : 1,
                     child: IconButton(
-                      icon: const Icon(Icons.home_rounded, size: 28),
+                      icon: Icon(
+                        Icons.home_rounded,
+                        size: 28,
+                        color: _currentIndex == 0
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).iconTheme.color,
+                      ),
                       onPressed: () => _onTabTapped(0),
                       tooltip: 'Home',
                     ),
@@ -394,7 +431,13 @@ class _MainScreenState extends State<MainScreen>
                         ? 1 + _animationController.value * 0.2
                         : 1,
                     child: IconButton(
-                      icon: const Icon(Icons.folder_shared_rounded, size: 28),
+                      icon: Icon(
+                        Icons.folder_shared_rounded,
+                        size: 28,
+                        color: _currentIndex == 2
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).iconTheme.color,
+                      ),
                       onPressed: () => _onTabTapped(2),
                       tooltip: 'Files',
                     ),
@@ -405,11 +448,10 @@ class _MainScreenState extends State<MainScreen>
           ),
         ),
       ),
-
-      /// Floating Action Button to capture photos.
       floatingActionButton: FloatingActionButton(
         onPressed: _takePhoto,
         tooltip: 'Take Picture',
+        backgroundColor: Theme.of(context).colorScheme.primary,
         child: const Icon(Icons.camera_enhance_rounded, size: 28),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -417,7 +459,8 @@ class _MainScreenState extends State<MainScreen>
   }
 }
 
-/// The HomeScreen displays a grid of captured photos and provides functionalities like editing, sharing, deleting, and generating PDFs.
+/// The HomeScreen displays a grid of captured photos and provides functionalities
+/// like editing, sharing, deleting, generating PDFs, and a **Select All** button.
 class HomeScreen extends StatefulWidget {
   final List<File> photos;
   final Future<void> Function() onSave;
@@ -457,11 +500,52 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-/// Generates a PDF from selected photos with a spinner while processing.
-Future<void> _generatePdf() async {
-  if (_selectedIndices.isEmpty) return;
+  /// Generates a PDF from selected photos with a spinner while processing.
+  Future<void> _generatePdf() async {
+    if (_selectedIndices.isEmpty) return;
 
-  try {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Lottie.asset(
+          'assets/animations/loading.json',
+          width: 150,
+          height: 150,
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+
+    // Start PDF generation and wait for at least 5 seconds
+    try {
+      await Future.wait([
+        _generatePdfInternal(),
+        Future.delayed(const Duration(seconds: 5)),
+      ]);
+
+      setState(() {
+        _selectedIndices.clear();
+        _selectionMode = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PDF Generated Successfully!')),
+      );
+    } catch (e) {
+      // Handle errors during PDF generation.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error generating PDF: $e')),
+      );
+    } finally {
+      // Dismiss loading dialog
+      Navigator.pop(context);
+    }
+  }
+
+  /// Internal method to handle PDF generation.
+  Future<void> _generatePdfInternal() async {
     final pdf = pw.Document();
 
     // Sort the selected indices to ensure proper order.
@@ -488,26 +572,12 @@ Future<void> _generatePdf() async {
       await pdfDir.create(recursive: true);
     }
 
-    final file = File('${pdfDir.path}/photos_${DateTime.now().millisecondsSinceEpoch}.pdf');
+    final file = File(
+        '${pdfDir.path}/photos_${DateTime.now().millisecondsSinceEpoch}.pdf');
     await file.writeAsBytes(await pdf.save());
 
-    setState(() {
-      _selectedIndices.clear();
-      _selectionMode = false;
-    });
-
     widget.onPdfGenerated(file);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('PDF Generated Successfully!')),
-    );
-  } catch (e) {
-    // Handle errors during PDF generation.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error generating PDF: $e')),
-    );
   }
-}
 
   /// Resizes and compresses the image at the given path.
   /// Processes the image without degrading quality or resizing unnecessarily.
@@ -521,7 +591,7 @@ Future<void> _generatePdf() async {
       throw Exception('Failed to decode image.');
     }
 
-    // Check if resizing is needed (only resize if maxWidth/maxHeight are smaller than original dimensions)
+    // Check if resizing is needed
     if ((maxWidth != null && image.width > maxWidth) ||
         (maxHeight != null && image.height > maxHeight)) {
       img.Image resized = img.copyResize(
@@ -531,14 +601,15 @@ Future<void> _generatePdf() async {
         interpolation: img.Interpolation.linear,
       );
 
-      // Compress the resized image to specified quality (optional)
-      final List<int> compressed = img.encodeJpg(resized,
-          quality: quality ?? 100); // Default quality = 100
+      // Compress the resized image to specified quality
+      final List<int> compressed =
+          img.encodeJpg(resized, quality: quality ?? 100);
       return Uint8List.fromList(compressed);
     }
 
-    // If no resizing is required, just return the original image bytes (optionally compress if quality < 100)
-    final List<int> compressed = img.encodeJpg(image, quality: quality ?? 100);
+    // If no resizing is required, just return the original image bytes
+    final List<int> compressed =
+        img.encodeJpg(image, quality: quality ?? 100);
     return Uint8List.fromList(compressed);
   }
 
@@ -626,8 +697,27 @@ Future<void> _generatePdf() async {
     });
   }
 
+  /// Toggles between "Select All" and "Deselect All" when in selection mode.
+  void _selectAllOrNone() {
+    final allSelected = _selectedIndices.length == widget.photos.length;
+    setState(() {
+      if (allSelected) {
+        // Deselect all
+        _selectedIndices.clear();
+        _selectionMode = false;
+      } else {
+        // Select all
+        _selectedIndices =
+            Set.from(Iterable<int>.generate(widget.photos.length));
+        _selectionMode = true;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final allSelected = _selectedIndices.length == widget.photos.length;
+
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 70,
@@ -661,6 +751,17 @@ Future<void> _generatePdf() async {
               ),
         actions: _selectionMode
             ? [
+                /// Select All / Deselect All Button.
+                IconButton(
+                  icon: Icon(
+                    allSelected
+                        ? Icons.clear_all
+                        : Icons.select_all_outlined,
+                  ),
+                  onPressed: _selectAllOrNone,
+                  tooltip: allSelected ? 'Deselect All' : 'Select All',
+                ),
+
                 /// Delete Button.
                 IconButton(
                   icon: const Icon(Icons.delete),
@@ -680,14 +781,7 @@ Future<void> _generatePdf() async {
                   icon: const Icon(Icons.picture_as_pdf),
                   onPressed: _generatePdf,
                   tooltip: 'Generate PDF',
-                ),
-
-                /// Cancel Selection Button.
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: _cancelSelection,
-                  tooltip: 'Cancel',
-                ),
+                )
               ]
             : null,
       ),
@@ -747,7 +841,6 @@ Future<void> _generatePdf() async {
                               color: Theme.of(context)
                                   .colorScheme
                                   .primary
-                                  // ignore: deprecated_member_use
                                   .withOpacity(0.5),
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -769,7 +862,8 @@ Future<void> _generatePdf() async {
   }
 }
 
-/// The FilesScreen displays a list of generated PDFs and provides functionalities to view, share, and delete them.
+/// The FilesScreen displays a list of generated PDFs and provides functionalities
+/// to view (with a loading screen), share, and delete them.
 class FilesScreen extends StatefulWidget {
   final List<File> pdfs;
 
@@ -782,6 +876,22 @@ class FilesScreen extends StatefulWidget {
 class _FilesScreenState extends State<FilesScreen> {
   Set<int> _selectedIndices = {};
   bool _selectionMode = false;
+
+  /// Shows a modal loading dialog with a Lottie animation.
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismissal by tapping outside
+      builder: (context) => Center(
+        child: Lottie.asset(
+          'assets/animations/loading.json',
+          width: 150,
+          height: 150,
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+  }
 
   /// Toggles the selection of a PDF at the given index.
   void _toggleSelection(int index) {
@@ -800,26 +910,27 @@ class _FilesScreenState extends State<FilesScreen> {
 
   /// Opens the PDF using OpenFilex or falls back to an in-app PDF viewer.
   Future<void> _openPdf(File file) async {
+    // Show a full-screen loading spinner:
+    _showLoadingDialog();
+
     try {
       // Check if the file exists.
       if (!await file.exists()) {
+        Navigator.pop(context); // Close the loading spinner
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('File does not exist.')),
         );
-        print('PDF does not exist at path: ${file.path}');
         return;
       }
 
-      print('Attempting to open PDF at path: ${file.path}');
-
       // Attempt to open the PDF using OpenFilex.
       final result = await OpenFilex.open(file.path);
-      print('OpenFilex Result: Type=${result.type}, Message=${result.message}');
 
-      if (result.type == ResultType.done) {
-        print('PDF opened successfully with external app.');
-      } else {
-        // Fallback to in-app PDF viewer.
+      // Close the loading spinner before checking the result:
+      Navigator.pop(context);
+
+      if (result.type != ResultType.done) {
+        // Fallback to in-app PDF viewer if external open failed or not available
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -827,15 +938,13 @@ class _FilesScreenState extends State<FilesScreen> {
           ),
         );
       }
-    } catch (e, stackTrace) {
-      // Handle any unexpected errors.
+    } catch (e) {
+      // Close the loading spinner on error
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error opening PDF: $e')),
       );
-      print('Exception caught while opening PDF: $e');
-      print('StackTrace: $stackTrace');
-
-      // Fallback to in-app PDF viewer.
+      // Fallback to in-app PDF viewer
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -1024,15 +1133,17 @@ class _FilesScreenState extends State<FilesScreen> {
                   onLongPress: () => _onPdfLongPress(index),
                   child: Container(
                     color: isSelected
-                        // ignore: deprecated_member_use
-                        ? Theme.of(context).colorScheme.primary.withOpacity(0.3)
+                        ? Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.3)
                         : Colors.transparent,
                     child: ListTile(
                       leading:
                           const Icon(Icons.picture_as_pdf, color: Colors.red),
                       title: Text(
                         file.path.split('/').last,
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
                       ),
                       trailing: isSelected
                           ? const Icon(Icons.check_circle, color: Colors.white)
@@ -1061,7 +1172,7 @@ class PdfViewerScreen extends StatelessWidget {
       body: PDFView(
         filePath: path,
         enableSwipe: true,
-        nightMode: false,
+        nightMode: Theme.of(context).brightness == Brightness.dark,
         swipeHorizontal: true,
         autoSpacing: false,
         pageFling: true,
@@ -1132,7 +1243,6 @@ class _FullScreenImageState extends State<FullScreenImage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error editing image: $e')),
       );
-      print('Error editing image: $e');
     } finally {
       // Reset the editing state.
       setState(() {
@@ -1168,7 +1278,9 @@ class _FullScreenImageState extends State<FullScreenImage> {
                 ),
               ),
         backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        foregroundColor: Theme.of(context).brightness == Brightness.dark
+            ? Colors.white
+            : Colors.black,
         actions: _isEditing
             ? []
             : [
@@ -1191,7 +1303,9 @@ class _FullScreenImageState extends State<FullScreenImage> {
         children: [
           Expanded(
             child: Container(
-              color: Colors.black,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.black
+                  : Colors.white,
               child: Center(
                 child: Image.file(
                   _editedImage,
