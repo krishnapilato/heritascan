@@ -116,9 +116,15 @@ class _InitialScreenState extends State<InitialScreen> {
   Widget build(BuildContext context) {
     // Display a loading indicator while checking the setup.
     return Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(
-          color: Theme.of(context).colorScheme.primary,
+      body: Container(
+        color: Colors.white,
+        child: Center(
+          child: Lottie.network(
+            'https://assets10.lottiefiles.com/packages/lf20_usmfx6bp.json',
+            width: 150,
+            height: 150,
+            fit: BoxFit.contain,
+          ),
         ),
       ),
     );
@@ -313,9 +319,8 @@ class _MainScreenState extends State<MainScreen>
       final ImagePicker picker = ImagePicker();
       final XFile? photo = await picker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 1024, // Reduce image width for optimization.
-        maxHeight: 1024, // Reduce image height for optimization.
-        imageQuality: 80, // Compress image quality.
+        // Removed maxWidth and maxHeight to keep original size
+        imageQuality: 100, // Set to maximum quality
       );
 
       if (photo != null) {
@@ -508,12 +513,15 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Center(
-        child: Lottie.asset(
-          'assets/animations/loading.json',
-          width: 150,
-          height: 150,
-          fit: BoxFit.contain,
+      builder: (context) => Container(
+        color: Colors.black54,
+        child: Center(
+          child: Lottie.network(
+            'https://assets10.lottiefiles.com/packages/lf20_usmfx6bp.json',
+            width: 150,
+            height: 150,
+            fit: BoxFit.contain,
+          ),
         ),
       ),
     );
@@ -882,12 +890,15 @@ class _FilesScreenState extends State<FilesScreen> {
     showDialog(
       context: context,
       barrierDismissible: false, // Prevent dismissal by tapping outside
-      builder: (context) => Center(
-        child: Lottie.asset(
-          'assets/animations/loading.json',
-          width: 150,
-          height: 150,
-          fit: BoxFit.contain,
+      builder: (context) => Container(
+        color: Colors.black54,
+        child: Center(
+          child: Lottie.network(
+            'https://assets10.lottiefiles.com/packages/lf20_usmfx6bp.json',
+            width: 150,
+            height: 150,
+            fit: BoxFit.contain,
+          ),
         ),
       ),
     );
@@ -1172,7 +1183,7 @@ class PdfViewerScreen extends StatelessWidget {
       body: PDFView(
         filePath: path,
         enableSwipe: true,
-        nightMode: Theme.of(context).brightness == Brightness.dark,
+        nightMode: false, // Always use light theme
         swipeHorizontal: true,
         autoSpacing: false,
         pageFling: true,
