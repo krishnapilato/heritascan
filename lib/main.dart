@@ -18,7 +18,6 @@ Future<void> main() async {
 
   // Load initial preferences (theme, etc.)
   final prefs = await SharedPreferences.getInstance();
-  // (We can still store an internal _appName if we like, or just use a default.)
   final appName = prefs.getString('appName') ?? 'HeritaScan';
   final bool isDarkTheme = prefs.getBool('isDarkTheme') ?? false;
 
@@ -66,7 +65,6 @@ class MyApp extends StatefulWidget {
   @override
   State<MyApp> createState() => _MyAppState();
 
-  // Helper to read preferences anywhere
   static Future<SharedPreferences> get prefs async =>
       SharedPreferences.getInstance();
 }
@@ -101,7 +99,6 @@ class _MyAppState extends State<MyApp> {
       case '/main':
         return FadePageRoute(
           builder: (_) => MainScreen(
-            // We no longer pass an editable appName to MainScreen
             onToggleTheme: setDarkTheme,
             isDarkTheme: _isDarkTheme,
           ),
@@ -114,7 +111,6 @@ class _MyAppState extends State<MyApp> {
           ),
         );
       default:
-        // Fallback
         return FadePageRoute(builder: (_) => const InitialScreen());
     }
   }
@@ -122,8 +118,8 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // If you still want the MaterialApp title to reflect the stored app name:
-      title: _appName.isEmpty ? 'HeritaScan' : _appName,
+      // Reflect the stored app name in the MaterialApp title:
+      title: 'HeritaScan',
 
       themeMode: _isDarkTheme ? ThemeMode.dark : ThemeMode.light,
 
@@ -140,8 +136,7 @@ class _MyAppState extends State<MyApp> {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            textStyle:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -169,8 +164,7 @@ class _MyAppState extends State<MyApp> {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            textStyle:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -193,7 +187,7 @@ class _MyAppState extends State<MyApp> {
 }
 
 /// The InitialScreen checks if the necessary directories are set.
-/// If not, it navigates to the SetupScreen; otherwise, it proceeds to the MainScreen.
+/// If not, it navigates to the SetupScreen; otherwise, it proceeds to MainScreen.
 class InitialScreen extends StatefulWidget {
   const InitialScreen({Key? key}) : super(key: key);
 
@@ -202,17 +196,14 @@ class InitialScreen extends StatefulWidget {
 }
 
 class _InitialScreenState extends State<InitialScreen> {
-  /// Checks if the photos and PDFs directories are already set.
   Future<void> _checkSetup() async {
     final prefs = await SharedPreferences.getInstance();
     final photosDir = prefs.getString('photosDirectory');
     final pdfsDir = prefs.getString('pdfsDirectory');
 
     if (photosDir == null || pdfsDir == null) {
-      // Navigate to SetupScreen if directories are not set.
       Navigator.pushReplacementNamed(context, '/setup');
     } else {
-      // Navigate to MainScreen if directories are already set.
       Navigator.pushReplacementNamed(context, '/main');
     }
   }
@@ -260,21 +251,19 @@ class _SetupScreenState extends State<SetupScreen> {
   String? _photosDirectory;
   String? _pdfsDirectory;
 
-  /// Opens a directory picker for the specified type ('photos' or 'pdfs').
   Future<void> _pickDirectory(String type) async {
-    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
-    if (selectedDirectory != null) {
-      setState(() {
-        if (type == 'photos') {
-          _photosDirectory = selectedDirectory;
-        } else if (type == 'pdfs') {
-          _pdfsDirectory = selectedDirectory;
-        }
-      });
-    }
+    final selectedDirectory = await FilePicker.platform.getDirectoryPath();
+    if (selectedDirectory == null) return;
+
+    setState(() {
+      if (type == 'photos') {
+        _photosDirectory = selectedDirectory;
+      } else if (type == 'pdfs') {
+        _pdfsDirectory = selectedDirectory;
+      }
+    });
   }
 
-  /// Saves the selected directories to SharedPreferences and navigates to the MainScreen.
   Future<void> _saveDirectories() async {
     if (_photosDirectory == null || _pdfsDirectory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -314,7 +303,7 @@ class _SetupScreenState extends State<SetupScreen> {
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      /// Photos Directory
+                      // Photos Directory
                       Card(
                         elevation: 3,
                         shape: RoundedRectangleBorder(
@@ -335,7 +324,7 @@ class _SetupScreenState extends State<SetupScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      /// PDFs Directory
+                      // PDFs Directory
                       Card(
                         elevation: 3,
                         shape: RoundedRectangleBorder(
@@ -356,7 +345,7 @@ class _SetupScreenState extends State<SetupScreen> {
                       ),
                       const Spacer(),
 
-                      /// Save Settings Button
+                      // Save Settings Button
                       ElevatedButton(
                         onPressed: _saveDirectories,
                         style: ElevatedButton.styleFrom(
@@ -378,48 +367,36 @@ class _SetupScreenState extends State<SetupScreen> {
 
 /// The MainScreen hosts the primary functionalities of the app, including Home and Files tabs.
 class MainScreen extends StatefulWidget {
-  // Removed appName & onRenameApp references
   final ValueChanged<bool> onToggleTheme;
   final bool isDarkTheme;
 
   const MainScreen({
-    super.key,
+    Key? key,
     required this.onToggleTheme,
     required this.isDarkTheme,
-  });
+  }) : super(key: key);
 
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
+class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   final List<File> _photos = [];
   final List<File> _pdfs = [];
-  late AnimationController _animationController;
 
   String? _photosDirectory;
   String? _pdfsDirectory;
 
-  final ImagePicker _picker = ImagePicker(); // for capturing with camera
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
     _loadDirectories().then((_) {
       _loadPhotos();
       _loadPdfs();
     });
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
   }
 
   /// Loads the directories from SharedPreferences.
@@ -474,25 +451,19 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         source: ImageSource.camera,
         preferredCameraDevice: CameraDevice.rear,
       );
+      if (pickedFile == null) return;
 
-      if (pickedFile == null) {
-        // User canceled the camera
-        return;
-      }
-
-      final File oldFile = File(pickedFile.path);
+      final oldFile = File(pickedFile.path);
       if (await oldFile.exists()) {
-        final Directory photosDir = Directory(_photosDirectory!);
+        final photosDir = Directory(_photosDirectory!);
         if (!await photosDir.exists()) {
           await photosDir.create(recursive: true);
         }
-        final String newPath =
+        final newPath =
             '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final File savedPhoto = await oldFile.copy(newPath);
+        final savedPhoto = await oldFile.copy(newPath);
 
-        setState(() {
-          _photos.add(savedPhoto);
-        });
+        setState(() => _photos.add(savedPhoto));
         await _savePhotos();
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -510,33 +481,26 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   /// Import photos from device gallery into the photos directory
   Future<void> _importPhotos() async {
     try {
-      final List<XFile>? pickedFiles = await _picker.pickMultiImage();
+      final pickedFiles = await _picker.pickMultiImage();
+      if (pickedFiles == null || pickedFiles.isEmpty) return;
 
-      if (pickedFiles == null || pickedFiles.isEmpty) {
-        // User canceled the picker
-        return;
-      }
-
-      final Directory photosDir = Directory(_photosDirectory!);
+      final photosDir = Directory(_photosDirectory!);
       if (!await photosDir.exists()) {
         await photosDir.create(recursive: true);
       }
 
       for (var pickedFile in pickedFiles) {
-        final File oldFile = File(pickedFile.path);
+        final oldFile = File(pickedFile.path);
         if (await oldFile.exists()) {
-          final String newPath =
+          final newPath =
               '${photosDir.path}/imported_${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
-          final File savedPhoto = await oldFile.copy(newPath);
+          final savedPhoto = await oldFile.copy(newPath);
 
-          setState(() {
-            _photos.add(savedPhoto);
-          });
+          setState(() => _photos.add(savedPhoto));
         }
       }
 
       await _savePhotos();
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Photos imported successfully!')),
       );
@@ -548,41 +512,33 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     }
   }
 
-  /// Handles bottom navigation tab selection
-  void _onTabTapped(int index) {
-    if (_animationController.isAnimating) return;
+  /// Navigation logic for bottom nav bar
+  void _onNavIndexChanged(int newIndex) {
     setState(() {
-      _currentIndex = index;
+      _currentIndex = newIndex;
     });
-    _animationController
-        .forward()
-        .then((_) => _animationController.reverse());
   }
 
   @override
   Widget build(BuildContext context) {
-    // We build the screens from separate files
-    final List<Widget> screens = [
-      // We no longer pass an appName
+    // Each nav item shows a different screen
+    final screens = [
       HomeScreen(
         photos: _photos,
         onSave: _savePhotos,
         onPdfGenerated: (pdf) {
-          setState(() {
-            _pdfs.add(pdf);
-          });
+          setState(() => _pdfs.add(pdf));
           _savePdfs();
         },
         photosDirectory: _photosDirectory,
         pdfsDirectory: _pdfsDirectory,
         onImportPhotos: _importPhotos,
       ),
-      const SizedBox(), // Placeholder for the middle tab
       FilesScreen(pdfs: _pdfs),
     ];
 
     return Scaffold(
-      // Subtle gradient
+      // Subtle background gradient
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -595,73 +551,33 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         ),
         child: screens[_currentIndex],
       ),
-      bottomNavigationBar: BottomAppBar(
-        color: Colors.transparent,
-        elevation: 0,
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Home tab
-              AnimatedBuilder(
-                animation: _animationController,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _currentIndex == 0
-                        ? 1 + _animationController.value * 0.2
-                        : 1,
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.home_rounded,
-                        size: 28,
-                        color: _currentIndex == 0
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context).iconTheme.color,
-                      ),
-                      onPressed: () => _onTabTapped(0),
-                      tooltip: 'Home',
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 48),
 
-              // Files tab
-              AnimatedBuilder(
-                animation: _animationController,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _currentIndex == 2
-                        ? 1 + _animationController.value * 0.2
-                        : 1,
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.folder_shared_rounded,
-                        size: 28,
-                        color: _currentIndex == 2
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context).iconTheme.color,
-                      ),
-                      onPressed: () => _onTabTapped(2),
-                      tooltip: 'Files',
-                    ),
-                  );
-                },
-              ),
-            ],
+      // Material 3 NavigationBar for a clean look
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _onNavIndexChanged,
+        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_rounded),
+            label: 'Home',
           ),
-        ),
+          NavigationDestination(
+            icon: Icon(Icons.folder_shared_rounded),
+            label: 'Files',
+          ),
+        ],
       ),
+
+      // Floating Action Button for taking a photo
       floatingActionButton: FloatingActionButton(
         onPressed: _takePhoto,
         tooltip: 'Take Photo',
+        mini: true,
         backgroundColor: Theme.of(context).colorScheme.primary,
-        child: const Icon(Icons.camera_alt_rounded, size: 28),
+        child: const Icon(Icons.camera_enhance_rounded, size: 15),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }

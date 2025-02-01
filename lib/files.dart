@@ -2,13 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
+// ignore: depend_on_referenced_packages
 import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Displays a list of generated PDFs with a modern sliver layout.
-/// Each can be viewed, shared, or deleted.
 class FilesScreen extends StatefulWidget {
   final List<File> pdfs;
 
@@ -22,12 +22,11 @@ class _FilesScreenState extends State<FilesScreen> {
   Set<int> _selectedIndices = {};
   bool _selectionMode = false;
 
-  /// Toggles selection for a single PDF item.
+  // Toggles selection for a single PDF item.
   void _toggleSelection(int index) {
     setState(() {
       if (_selectedIndices.contains(index)) {
         _selectedIndices.remove(index);
-        // Turn off selection mode if none are selected
         if (_selectedIndices.isEmpty) {
           _selectionMode = false;
         }
@@ -38,7 +37,7 @@ class _FilesScreenState extends State<FilesScreen> {
     });
   }
 
-  /// Toggles "Select All" vs. "Clear All" based on current selection state.
+  // Toggles "Select All" vs. "Clear All" based on current selection state.
   void _toggleSelectAllOrNone() {
     final allSelected = _selectedIndices.length == widget.pdfs.length;
     setState(() {
@@ -54,7 +53,7 @@ class _FilesScreenState extends State<FilesScreen> {
     });
   }
 
-  /// Shows a loading animation while attempting to open a PDF.
+  // Shows a loading animation while attempting to open a PDF.
   void _showLoadingDialog() {
     showDialog(
       context: context,
@@ -73,10 +72,9 @@ class _FilesScreenState extends State<FilesScreen> {
     );
   }
 
-  /// Tries to open the PDF externally. If unsupported, opens in-app viewer.
+  // Tries to open the PDF externally. If unsupported, opens in-app viewer.
   Future<void> _openPdf(File file) async {
     _showLoadingDialog();
-
     try {
       if (!await file.exists()) {
         Navigator.pop(context);
@@ -94,7 +92,7 @@ class _FilesScreenState extends State<FilesScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => PdfViewerScreen(path: file.path),
+            builder: (_) => PdfViewerScreen(path: file.path),
           ),
         );
       }
@@ -103,17 +101,16 @@ class _FilesScreenState extends State<FilesScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error opening PDF: $e')),
       );
-      // Fallback to in-app PDF viewer
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => PdfViewerScreen(path: file.path),
+          builder: (_) => PdfViewerScreen(path: file.path),
         ),
       );
     }
   }
 
-  /// Tap event for PDF item
+  // Tap event for PDF item
   void _onPdfTap(int index) {
     if (_selectionMode) {
       _toggleSelection(index);
@@ -122,12 +119,12 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  /// Long press triggers selection mode for PDF item
+  // Long press triggers selection mode for PDF item
   void _onPdfLongPress(int index) {
     _toggleSelection(index);
   }
 
-  /// Shows a confirmation dialog before deleting selected PDFs.
+  // Shows a confirmation dialog before deleting selected PDFs.
   Future<void> _confirmDeleteSelectedPdfs() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -155,10 +152,9 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  /// Deletes all currently selected PDFs from disk and updates local storage.
+  // Deletes all currently selected PDFs from disk and updates local storage.
   Future<void> _deleteSelectedPdfs() async {
     if (_selectedIndices.isEmpty) return;
-
     final filesToDelete = _selectedIndices.map((i) => widget.pdfs[i]).toList();
 
     try {
@@ -174,10 +170,7 @@ class _FilesScreenState extends State<FilesScreen> {
         _selectionMode = false;
       });
 
-      final prefs = await SharedPreferences.getInstance();
-      final pdfPaths = widget.pdfs.map((file) => file.path).toList();
-      await prefs.setStringList('pdfs', pdfPaths);
-
+      await _updateSharedPrefs();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selected PDFs deleted!')),
       );
@@ -188,13 +181,10 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  /// Shares all currently selected PDFs
+  // Shares all currently selected PDFs
   Future<void> _shareSelectedPdfs() async {
     if (_selectedIndices.isEmpty) return;
-
-    final filesToShare = _selectedIndices
-        .map((idx) => XFile(widget.pdfs[idx].path))
-        .toList();
+    final filesToShare = _selectedIndices.map((idx) => XFile(widget.pdfs[idx].path)).toList();
 
     try {
       await Share.shareXFiles(filesToShare, text: 'Check out these PDFs!');
@@ -209,12 +199,83 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  /// Cancels selection mode entirely
+  // Cancels selection mode entirely
   void _cancelSelection() {
     setState(() {
       _selectedIndices.clear();
       _selectionMode = false;
     });
+  }
+
+  // Renames a single PDF file on disk and updates the list & shared prefs.
+  Future<void> _renamePdf(File oldFile, String newName, int index) async {
+    if (newName.trim().isEmpty) return;
+
+    // Ensure the new name ends with ".pdf"
+    if (!newName.toLowerCase().endsWith('.pdf')) {
+      newName = '${newName.trim()}.pdf';
+    }
+
+    final directory = oldFile.parent;
+    final newPath = '${directory.path}/$newName';
+
+    try {
+      final newFile = await oldFile.rename(newPath);
+      setState(() {
+        widget.pdfs[index] = newFile;
+      });
+      await _updateSharedPrefs();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Renamed to $newName')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error renaming file: $e')),
+      );
+    }
+  }
+
+  // Opens a dialog allowing the user to enter a new name for the PDF.
+  Future<void> _showRenameDialog(File file, int index) async {
+    final oldName = file.path.split('/').last;
+    final controller = TextEditingController(text: oldName.replaceAll('.pdf', ''));
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename PDF'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'New name (without .pdf)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, controller.text);
+            },
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null) {
+      await _renamePdf(file, newName, index);
+    }
+  }
+
+  // Updates shared prefs so it matches the current 'widget.pdfs'.
+  Future<void> _updateSharedPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final pdfPaths = widget.pdfs.map((file) => file.path).toList();
+    await prefs.setStringList('pdfs', pdfPaths);
   }
 
   @override
@@ -225,17 +286,17 @@ class _FilesScreenState extends State<FilesScreen> {
     final allSelected = _selectedIndices.length == itemCount && itemCount > 0;
 
     return Scaffold(
+      // We use a CustomScrollView + SliverAppBar pattern.
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
             pinned: true,
             floating: false,
-            expandedHeight: 100,
+            expandedHeight: 90,
             centerTitle: false,
             backgroundColor: theme.colorScheme.background,
-            elevation: 0,
+            elevation: 1,
 
-            // Leading button to cancel selection if in selection mode
             leading: _selectionMode
                 ? IconButton(
                     icon: const Icon(Icons.close),
@@ -244,10 +305,9 @@ class _FilesScreenState extends State<FilesScreen> {
                   )
                 : null,
 
-            // Title logic
             title: _selectionMode
                 ? Text(
-                    'Select(${_selectedIndices.length})',
+                    'Selected (${_selectedIndices.length})',
                     style: TextStyle(
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.bold,
@@ -255,13 +315,13 @@ class _FilesScreenState extends State<FilesScreen> {
                   )
                 : null,
 
-            // Action buttons
             actions: _selectionMode
                 ? [
-                    // Select All / Deselect All
                     IconButton(
-                      icon: Icon(allSelected ? Icons.clear_all : Icons.select_all),
-                      onPressed: _selectAllOrNone,
+                      icon: Icon(
+                        allSelected ? Icons.clear_all : Icons.select_all,
+                      ),
+                      onPressed: _toggleSelectAllOrNone,
                       tooltip: allSelected ? 'Deselect All' : 'Select All',
                     ),
                     IconButton(
@@ -278,28 +338,30 @@ class _FilesScreenState extends State<FilesScreen> {
                 : null,
 
             flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.only(left: 16, bottom: 12),
+              titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
+              // Only show the main title if not in selection mode
               title: !_selectionMode
                   ? Text(
                       'Files',
                       style: TextStyle(
                         color: theme.colorScheme.primary,
                         fontSize: 28,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w800,
                       ),
                     )
                   : null,
             ),
           ),
 
-          // Body content
           if (isEmpty)
             SliverFillRemaining(
               child: Center(
                 child: Text(
                   'No PDFs available.',
-                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: theme.disabledColor,
+                  ),
                 ),
               ),
             )
@@ -309,7 +371,7 @@ class _FilesScreenState extends State<FilesScreen> {
                 (context, index) {
                   final file = widget.pdfs[index];
                   final isSelected = _selectedIndices.contains(index);
-                  return _buildPdfTile(file, index, isSelected);
+                  return _buildPdfCard(file, index, isSelected);
                 },
                 childCount: itemCount,
               ),
@@ -319,55 +381,120 @@ class _FilesScreenState extends State<FilesScreen> {
     );
   }
 
-  /// Builds a single tile representing a PDF file.
-  Widget _buildPdfTile(File file, int index, bool isSelected) {
+  /// Builds a single card-like tile representing a PDF file,
+  /// with name, size, modified date, plus PDF icon + trailing popup menu.
+  Widget _buildPdfCard(File file, int index, bool isSelected) {
     final theme = Theme.of(context);
     final fileName = file.path.split('/').last;
+
+    // Gather file metadata
+    final fileStat = file.statSync();
+    final fileSize = _formatFileSize(fileStat.size);
+    final modifiedDate = fileStat.modified;
+    String formattedDate = 'Unknown';
+    if (modifiedDate != null) {
+      formattedDate = DateFormat('dd-MM-yyyy HH:mm a').format(modifiedDate);
+    }
+
+    // Decide the default card color based on the theme (dark or light).
+    final baseCardColor = theme.cardColor;
+    final selectedColor = theme.colorScheme.primary.withOpacity(0.12);
 
     return GestureDetector(
       onTap: () => _onPdfTap(index),
       onLongPress: () => _onPdfLongPress(index),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        color: isSelected
-            ? theme.colorScheme.primary.withOpacity(0.3)
-            : Colors.transparent,
+        duration: const Duration(milliseconds: 300),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        // Use a Card for a more Material-like look with rounded corners.
+        decoration: BoxDecoration(
+          color: isSelected ? selectedColor : baseCardColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            if (theme.brightness == Brightness.light)
+              BoxShadow(
+                color: isSelected
+                    ? theme.colorScheme.primary.withOpacity(0.2)
+                    : Colors.black12,
+                offset: const Offset(0, 2),
+                blurRadius: 6,
+              ),
+          ],
+        ),
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          leading: const CircleAvatar(
+            backgroundColor: Colors.transparent,
+            child: Icon(Icons.picture_as_pdf, color: Colors.red),
+          ),
           title: Text(
             fileName,
             style: TextStyle(
-              color: theme.textTheme.bodyLarge?.color,
               fontWeight: FontWeight.w600,
+              color: theme.textTheme.bodyLarge?.color,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            '$fileSize • $formattedDate',
+            style: TextStyle(
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
             ),
           ),
-          trailing: isSelected
-              ? const Icon(Icons.check_circle, color: Colors.white)
-              : null,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Show check icon if selected
+              if (isSelected)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Icon(
+                    Icons.check_circle,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              // Popup menu button for rename
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) {
+                  if (value == 'rename') {
+                    _showRenameDialog(file, index);
+                  }
+                },
+                itemBuilder: (BuildContext context) => [
+                  const PopupMenuItem<String>(
+                    value: 'rename',
+                    child: Text('Rename'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// Select All / Deselect All logic
-  void _selectAllOrNone() {
-    final allSelected = _selectedIndices.length == widget.pdfs.length;
-    setState(() {
-      if (allSelected) {
-        _selectedIndices.clear();
-        _selectionMode = false;
-      } else {
-        _selectedIndices = Set.from(
-          List.generate(widget.pdfs.length, (i) => i),
-        );
-        _selectionMode = true;
-      }
-    });
+  /// Format file sizes in a readable manner
+  String _formatFileSize(int bytes) {
+    const kb = 1024;
+    const mb = kb * 1024;
+    const gb = mb * 1024;
+
+    if (bytes >= gb) {
+      return '${(bytes / gb).toStringAsFixed(2)} GB';
+    } else if (bytes >= mb) {
+      return '${(bytes / mb).toStringAsFixed(1)} MB';
+    } else if (bytes >= kb) {
+      return '${(bytes / kb).toStringAsFixed(1)} KB';
+    } else {
+      return '$bytes B';
+    }
   }
 }
 
-/// A simple PDF viewer screen using the flutter_pdfview package.
+// Simple PDF viewer screen with a gradient background
 class PdfViewerScreen extends StatelessWidget {
   final String path;
 
@@ -376,7 +503,7 @@ class PdfViewerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Use a gradient or other background you like
+      // Use the same or similar gradient background
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(

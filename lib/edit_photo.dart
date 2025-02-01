@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_editor_plus/image_editor_plus.dart';
+import 'package:intl/intl.dart';
 
 /// The FullScreenImage widget allows users to view and edit an image in full screen.
 class FullScreenImage extends StatefulWidget {
@@ -68,10 +69,19 @@ class _FullScreenImageState extends State<FullScreenImage> {
     Navigator.pop(context, _editedImage);
   }
 
+  /// Extracts the file name from the edited file path.
+  String get _fileName {
+    return _editedImage.path.split('/').last;
+  }
+
+  /// Gets the file's last modified time for display
+  String get _lastModified {
+    final modTime = _editedImage.lastModifiedSync();
+    return DateFormat('yyyy-MM-dd HH:mm').format(modTime);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       // We wrap everything in a gradient background
       body: Container(
@@ -91,7 +101,9 @@ class _FullScreenImageState extends State<FullScreenImage> {
                 expandedHeight: 100,
                 backgroundColor: Colors.transparent,
                 elevation: 0,
+
                 // If we are editing, we show "Editing..." in the title
+                // otherwise show the file name
                 title: _isEditing
                     ? const Text(
                         'Editing...',
@@ -101,13 +113,14 @@ class _FullScreenImageState extends State<FullScreenImage> {
                           color: Colors.grey,
                         ),
                       )
-                    : const Text(
-                        'Full Image',
-                        style: TextStyle(
+                    : Text(
+                        _fileName,
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+
                 actions: _isEditing
                     ? []
                     : [
@@ -124,15 +137,34 @@ class _FullScreenImageState extends State<FullScreenImage> {
                       ],
               ),
 
-              // Displays the image, filling the remaining space
+              // Displays the image + "last modified" info below
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: Center(
-                  child: Image.file(
-                    _editedImage,
-                    key: ValueKey(_imageVersion),
-                    fit: BoxFit.contain,
-                  ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // The image
+                    Expanded(
+                      child: Center(
+                        child: Image.file(
+                          _editedImage,
+                          key: ValueKey(_imageVersion),
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Last modified date
+                    Text(
+                      'Last modified: $_lastModified',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                 ),
               ),
             ],

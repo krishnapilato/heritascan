@@ -1,14 +1,11 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-// mailer dependencies
-import 'package:mailer/mailer.dart';
-import 'package:mailer/smtp_server.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:emailjs/emailjs.dart' as EmailJS; // <-- Add the EmailJS import
 
-import 'main.dart'; // for kAppVersion
+import 'main.dart'; // For kAppVersion
 
 class SettingsScreen extends StatefulWidget {
-  // Removed appName and onAppNameChanged since we're no longer changing the app name
   final bool isDarkTheme;
   final ValueChanged<bool> onThemeChanged;
 
@@ -25,6 +22,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String? _photosDirectory;
   String? _pdfsDirectory;
+  
+  String get kAppVersion => "0.1.5";
 
   @override
   void initState() {
@@ -54,8 +53,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Show bottom sheet, then send email directly via SMTP
-  void _openFeedbackFormDirectSMTP() {
+  /// Show bottom sheet with extra spacing, a "Select Type" dropdown, and a big text field.
+  void _openFeedbackForm() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -64,98 +63,135 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       builder: (BuildContext context) {
         final theme = Theme.of(context);
-        final TextEditingController _feedbackController = TextEditingController();
+
+        // Track the dropdown value for "feedback type"
+        String? feedbackType;
+        final TextEditingController feedbackController = TextEditingController();
 
         return Padding(
-          padding: MediaQuery.of(context).viewInsets,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Wrap(
-              children: [
-                Text(
-                  'Share Your Thoughts',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+          padding: EdgeInsets.only(
+            // Ensure bottom sheet doesn't get covered by the keyboard
+            left: 16,
+            right: 16,
+            top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Share Your Thoughts',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // "Select Type" Dropdown
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Type of feedback',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'Bug Report', child: Text('Bug Report')),
+                  DropdownMenuItem(value: 'Suggestion', child: Text('Suggestion')),
+                  DropdownMenuItem(value: 'Other', child: Text('Other')),
+                ],
+                onChanged: (value) {
+                  feedbackType = value;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Multi-line text field for feedback
+              TextField(
+                controller: feedbackController,
+                autofocus: true,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  labelText: 'Your feedback',
+                  hintText: 'Ideas, suggestions, or issues...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Action buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
                   ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _feedbackController,
-                  autofocus: true,
-                  maxLines: 5,
-                  decoration: const InputDecoration(
-                    hintText: 'Ideas, suggestions, or issues...',
-                    border: OutlineInputBorder(),
+                  const SizedBox(width: 12),
+                  FilledButton(
+                    onPressed: () async {
+                      final feedback = feedbackController.text.trim();
+                      if (feedback.isEmpty || feedbackType == null) {
+                        // Show a simple prompt and return
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please select type & enter feedback.')),
+                        );
+                        return;
+                      }
+
+                      final success = await _sendFeedbackEmail(feedbackType!, feedback);
+
+                      // Clear the text field and close the sheet
+                      feedbackController.clear();
+                      Navigator.pop(context);
+
+                      if (success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Thanks for your feedback!')),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not send feedback.')),
+                        );
+                      }
+                    },
+                    child: Row(
+                      children: const [
+                        Text('Send'),
+                        SizedBox(width: 4),
+                        Icon(Icons.send),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('CANCEL'),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: () async {
-                        final feedback = _feedbackController.text.trim();
-                        if (feedback.isEmpty) {
-                          Navigator.pop(context);
-                          return;
-                        }
-
-                        final success = await _sendEmail(feedback);
-
-                        _feedbackController.clear();
-                        Navigator.pop(context);
-
-                        if (success) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Thanks for your feedback!')),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Could not send feedback.')),
-                          );
-                        }
-                      },
-                      child: const Text('SUBMIT'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  /// Actually sends the email using mailer. 
-  /// WARNING: Storing credentials in the client is insecure.
-  Future<bool> _sendEmail(String feedback) async {
-    const username = '9a4f765dbe185a';
-    const password = '929d826701bafa';
-    const destinationEmail = 'krishnak.pilato@gmail.com'; // Where you want feedback
-
-    final smtpServer = gmail(username, password);
-
-    final message = Message()
-      ..from = Address(username, 'HeritaScan App')
-      ..recipients.add(destinationEmail)
-      ..subject = 'Feedback from HeritaScan'
-      ..text = feedback;
+  /// Sends the email with EmailJS. Make sure to configure your EmailJS service properly.
+  /// Replace YOUR_SERVICE_ID, YOUR_TEMPLATE_ID, and YOUR_PUBLIC_KEY with your actual EmailJS IDs.
+  Future<bool> _sendFeedbackEmail(String type, String feedback) async {
 
     try {
-      final sendReport = await send(message, smtpServer);
-      debugPrint('Message sent: $sendReport');
+      // The "params" here must match your EmailJS template variables
+      await EmailJS.send(
+        'service_xg0zung',
+        'template_6yjljvi',
+        {
+          'user_id': 'Snh_1YI8Oz07iuS5R',
+          'template_params': {
+            'feedback_type': 'Suggestion',
+            'feedback_message': 'This is my suggestion...',
+            'to_email': 'krishnak.pilato@gmail.com',
+            // etc. More variables if your template requires them
+          },
+        },
+      );
       return true;
-    } on MailerException catch (e) {
-      debugPrint('Message not sent. ${e.message}');
-      for (var p in e.problems) {
-        debugPrint('Problem: ${p.code}: ${p.msg}');
-      }
+    } catch (e) {
+      debugPrint('Error sending via EmailJS: $e');
       return false;
     }
   }
@@ -177,7 +213,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          // --- Appearance Section ---
+          // --- Appearance ---
           Text(
             'Appearance',
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -194,7 +230,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 32),
 
-          // --- Directories Section ---
+          // --- Directories ---
           Text(
             'Directories',
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -226,7 +262,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 32),
 
-          // --- Feedback Section ---
+          // --- Feedback ---
           Text(
             'Feedback',
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -239,11 +275,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'I’d love to hear from you!',
               style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
-            onTap: _openFeedbackFormDirectSMTP, // <--- Use direct SMTP
+            onTap: _openFeedbackForm, // now uses EmailJS
           ),
           const Divider(height: 32),
 
-          // --- About Section ---
+          // --- About ---
           Text(
             'About',
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -258,9 +294,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           ListTile(
+            leading: Icon(Icons.code),
+            title: Text('Open Source Licenses'),
+            subtitle: Text("View libraries used in this app."),
+            onTap: () {
+              showLicensePage(context: context);
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.person_rounded),
             title: const Text('Khova Krishna Pilato'),
-            subtitle: const Text('Thank you for using my app!'),
+            subtitle: const Text('Full Stack Developer'),
           ),
         ],
       ),
