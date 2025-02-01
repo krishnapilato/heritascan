@@ -47,6 +47,7 @@ android {
     }
 
     packagingOptions {
+        pickFirst '**/libc++_shared.so'
         resources.excludes.addAll([
             "META-INF/AL2.0",
             "META-INF/LGPL2.1"

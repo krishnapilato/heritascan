@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_document_scanner/flutter_document_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -136,8 +139,8 @@ class _MyAppState extends State<MyApp> {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            textStyle: const TextStyle(
-                fontSize: 16, fontWeight: FontWeight.bold),
+            textStyle:
+                const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -165,8 +168,8 @@ class _MyAppState extends State<MyApp> {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            textStyle: const TextStyle(
-                fontSize: 16, fontWeight: FontWeight.bold),
+            textStyle:
+                const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -381,6 +384,7 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedScreenIndex = 0;
   final List<File> _photos = [];
   final List<File> _pdfs = [];
+  final DocumentScannerController _controller = DocumentScannerController();
 
   String? _photosDirectory;
   String? _pdfsDirectory;
@@ -441,39 +445,63 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  /// Capture a photo with the camera and save it
-  Future<void> _takePhoto() async {
-    try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.rear,
-      );
-      if (pickedFile == null) return;
+Future<void> _takePhoto() async {
+  try {
+    // Create a fresh controller for each scan.
+    final DocumentScannerController controller = DocumentScannerController();
 
-      final oldFile = File(pickedFile.path);
-      if (await oldFile.exists()) {
-        final photosDir = Directory(_photosDirectory!);
-        if (!await photosDir.exists()) {
-          await photosDir.create(recursive: true);
-        }
-        final newPath =
-            '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final savedPhoto = await oldFile.copy(newPath);
+    // Create a completer to capture the image bytes from onSave.
+    final Completer<Uint8List> completer = Completer<Uint8List>();
 
-        setState(() => _photos.add(savedPhoto));
-        await _savePhotos();
+    // Push the DocumentScanner widget.
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DocumentScanner(
+          controller: controller,
+          onSave: (Uint8List imageBytes) {
+            if (!completer.isCompleted) {
+              completer.complete(imageBytes);
+            }
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Photo saved successfully!')),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error capturing photo: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error capturing photo: $e')),
-      );
+    // Await the scanned image bytes.
+    final Uint8List scannedImageBytes = await completer.future;
+
+    // Ensure the photos directory exists.
+    final Directory photosDir = Directory(_photosDirectory!);
+    if (!await photosDir.exists()) {
+      await photosDir.create(recursive: true);
     }
+
+    // Create a unique file path and save the scanned image as JPEG.
+    final String newPath =
+        '${photosDir.path}/scanned_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final File savedPhoto =
+        await File(newPath).writeAsBytes(scannedImageBytes);
+
+    // Update UI and persist the photo.
+    setState(() {
+      _photos.add(savedPhoto);
+    });
+    await _savePhotos();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Document scanned and saved successfully!'),
+      ),
+    );
+  } catch (e) {
+    debugPrint('Error scanning document: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error scanning document: $e')),
+    );
   }
+}
 
   /// Import photos from device gallery into the photos directory
   Future<void> _importPhotos() async {
@@ -556,7 +584,10 @@ class _MainScreenState extends State<MainScreen> {
           gradient: LinearGradient(
             colors: widget.isDarkTheme
                 ? [const Color(0xFF181818), const Color(0xFF434343)]
-                : [const Color.fromARGB(255, 198, 202, 203), const Color.fromARGB(255, 234, 232, 232)],
+                : [
+                    const Color.fromARGB(255, 198, 202, 203),
+                    const Color.fromARGB(255, 234, 232, 232)
+                  ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),

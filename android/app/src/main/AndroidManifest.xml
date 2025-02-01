@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:tools="http://schemas.android.com/tools" xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.CAMERA" />
@@ -10,7 +10,8 @@
         android:label="HeritaScan"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:theme="@style/LaunchTheme">
+        android:theme="@style/LaunchTheme"
+        tools:replace="android:theme">
 
         <!-- Main Activity -->
         <activity
