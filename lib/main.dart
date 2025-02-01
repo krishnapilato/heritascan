@@ -7,7 +7,6 @@ import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'files.dart';
-// Import screens from separate files
 import 'homepage.dart';
 import 'settings.dart';
 
@@ -17,8 +16,9 @@ const String kAppVersion = "0.1.5-alpha";
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load initial preferences (app name, theme, etc.)
+  // Load initial preferences (theme, etc.)
   final prefs = await SharedPreferences.getInstance();
+  // (We can still store an internal _appName if we like, or just use a default.)
   final appName = prefs.getString('appName') ?? 'HeritaScan';
   final bool isDarkTheme = prefs.getBool('isDarkTheme') ?? false;
 
@@ -68,7 +68,7 @@ class MyApp extends StatefulWidget {
 
   // Helper to read preferences anywhere
   static Future<SharedPreferences> get prefs async =>
-      await SharedPreferences.getInstance();
+      SharedPreferences.getInstance();
 }
 
 class _MyAppState extends State<MyApp> {
@@ -80,15 +80,6 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _appName = widget.initialAppName;
     _isDarkTheme = widget.initialDarkTheme;
-  }
-
-  /// Update the app name and persist it
-  Future<void> setAppName(String newName) async {
-    setState(() {
-      _appName = newName.trim().isEmpty ? 'HeritaScan' : newName;
-    });
-    final prefs = await MyApp.prefs;
-    await prefs.setString('appName', _appName);
   }
 
   /// Toggle or set the dark theme and persist it
@@ -110,8 +101,7 @@ class _MyAppState extends State<MyApp> {
       case '/main':
         return FadePageRoute(
           builder: (_) => MainScreen(
-            appName: _appName,
-            onRenameApp: setAppName,
+            // We no longer pass an editable appName to MainScreen
             onToggleTheme: setDarkTheme,
             isDarkTheme: _isDarkTheme,
           ),
@@ -119,8 +109,6 @@ class _MyAppState extends State<MyApp> {
       case '/settings':
         return FadePageRoute(
           builder: (_) => SettingsScreen(
-            appName: _appName,
-            onAppNameChanged: setAppName,
             isDarkTheme: _isDarkTheme,
             onThemeChanged: setDarkTheme,
           ),
@@ -134,7 +122,9 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      // If you still want the MaterialApp title to reflect the stored app name:
       title: _appName.isEmpty ? 'HeritaScan' : _appName,
+
       themeMode: _isDarkTheme ? ThemeMode.dark : ThemeMode.light,
 
       // LIGHT THEME
@@ -273,7 +263,6 @@ class _SetupScreenState extends State<SetupScreen> {
   /// Opens a directory picker for the specified type ('photos' or 'pdfs').
   Future<void> _pickDirectory(String type) async {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
-
     if (selectedDirectory != null) {
       setState(() {
         if (type == 'photos') {
@@ -325,11 +314,12 @@ class _SetupScreenState extends State<SetupScreen> {
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      /// Widget to select the Photos Directory.
+                      /// Photos Directory
                       Card(
                         elevation: 3,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: ListTile(
                           leading: const Icon(Icons.photo_library),
                           title: const Text('Select Photos Directory'),
@@ -345,11 +335,12 @@ class _SetupScreenState extends State<SetupScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      /// Widget to select the PDFs Directory.
+                      /// PDFs Directory
                       Card(
                         elevation: 3,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: ListTile(
                           leading: const Icon(Icons.folder_shared),
                           title: const Text('Select PDFs Directory'),
@@ -365,7 +356,7 @@ class _SetupScreenState extends State<SetupScreen> {
                       ),
                       const Spacer(),
 
-                      /// Save Settings Button.
+                      /// Save Settings Button
                       ElevatedButton(
                         onPressed: _saveDirectories,
                         style: ElevatedButton.styleFrom(
@@ -387,15 +378,12 @@ class _SetupScreenState extends State<SetupScreen> {
 
 /// The MainScreen hosts the primary functionalities of the app, including Home and Files tabs.
 class MainScreen extends StatefulWidget {
-  final String appName;
-  final ValueChanged<String> onRenameApp;
+  // Removed appName & onRenameApp references
   final ValueChanged<bool> onToggleTheme;
   final bool isDarkTheme;
 
   const MainScreen({
     super.key,
-    required this.appName,
-    required this.onRenameApp,
     required this.onToggleTheme,
     required this.isDarkTheme,
   });
@@ -404,8 +392,7 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen>
-    with SingleTickerProviderStateMixin {
+class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
   final List<File> _photos = [];
   final List<File> _pdfs = [];
@@ -567,15 +554,17 @@ class _MainScreenState extends State<MainScreen>
     setState(() {
       _currentIndex = index;
     });
-    _animationController.forward().then((_) => _animationController.reverse());
+    _animationController
+        .forward()
+        .then((_) => _animationController.reverse());
   }
 
   @override
   Widget build(BuildContext context) {
     // We build the screens from separate files
     final List<Widget> screens = [
+      // We no longer pass an appName
       HomeScreen(
-        appName: widget.appName,
         photos: _photos,
         onSave: _savePhotos,
         onPdfGenerated: (pdf) {
@@ -593,6 +582,7 @@ class _MainScreenState extends State<MainScreen>
     ];
 
     return Scaffold(
+      // Subtle gradient
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -615,7 +605,7 @@ class _MainScreenState extends State<MainScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              /// Home tab
+              // Home tab
               AnimatedBuilder(
                 animation: _animationController,
                 builder: (context, child) {
@@ -639,7 +629,7 @@ class _MainScreenState extends State<MainScreen>
               ),
               const SizedBox(width: 48),
 
-              /// Files tab
+              // Files tab
               AnimatedBuilder(
                 animation: _animationController,
                 builder: (context, child) {

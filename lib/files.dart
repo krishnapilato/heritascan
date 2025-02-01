@@ -7,7 +7,8 @@ import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Displays a list of generated PDFs. Each can be viewed, shared, or deleted.
+/// Displays a list of generated PDFs with a modern sliver layout.
+/// Each can be viewed, shared, or deleted.
 class FilesScreen extends StatefulWidget {
   final List<File> pdfs;
 
@@ -21,10 +22,12 @@ class _FilesScreenState extends State<FilesScreen> {
   Set<int> _selectedIndices = {};
   bool _selectionMode = false;
 
+  /// Toggles selection for a single PDF item.
   void _toggleSelection(int index) {
     setState(() {
       if (_selectedIndices.contains(index)) {
         _selectedIndices.remove(index);
+        // Turn off selection mode if none are selected
         if (_selectedIndices.isEmpty) {
           _selectionMode = false;
         }
@@ -35,6 +38,23 @@ class _FilesScreenState extends State<FilesScreen> {
     });
   }
 
+  /// Toggles "Select All" vs. "Clear All" based on current selection state.
+  void _toggleSelectAllOrNone() {
+    final allSelected = _selectedIndices.length == widget.pdfs.length;
+    setState(() {
+      if (allSelected) {
+        _selectedIndices.clear();
+        _selectionMode = false;
+      } else {
+        _selectedIndices = Set.from(
+          List.generate(widget.pdfs.length, (i) => i),
+        );
+        _selectionMode = true;
+      }
+    });
+  }
+
+  /// Shows a loading animation while attempting to open a PDF.
   void _showLoadingDialog() {
     showDialog(
       context: context,
@@ -53,6 +73,7 @@ class _FilesScreenState extends State<FilesScreen> {
     );
   }
 
+  /// Tries to open the PDF externally. If unsupported, opens in-app viewer.
   Future<void> _openPdf(File file) async {
     _showLoadingDialog();
 
@@ -92,6 +113,7 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
+  /// Tap event for PDF item
   void _onPdfTap(int index) {
     if (_selectionMode) {
       _toggleSelection(index);
@@ -100,12 +122,14 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
+  /// Long press triggers selection mode for PDF item
   void _onPdfLongPress(int index) {
     _toggleSelection(index);
   }
 
+  /// Shows a confirmation dialog before deleting selected PDFs.
   Future<void> _confirmDeleteSelectedPdfs() async {
-    bool? confirm = await showDialog<bool>(
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete PDFs'),
@@ -131,13 +155,11 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
+  /// Deletes all currently selected PDFs from disk and updates local storage.
   Future<void> _deleteSelectedPdfs() async {
     if (_selectedIndices.isEmpty) return;
 
-    List<File> filesToDelete = [];
-    for (var idx in _selectedIndices) {
-      filesToDelete.add(widget.pdfs[idx]);
-    }
+    final filesToDelete = _selectedIndices.map((i) => widget.pdfs[i]).toList();
 
     try {
       for (var file in filesToDelete) {
@@ -166,13 +188,13 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
+  /// Shares all currently selected PDFs
   Future<void> _shareSelectedPdfs() async {
     if (_selectedIndices.isEmpty) return;
 
-    List<XFile> filesToShare = [];
-    for (var idx in _selectedIndices) {
-      filesToShare.add(XFile(widget.pdfs[idx].path));
-    }
+    final filesToShare = _selectedIndices
+        .map((idx) => XFile(widget.pdfs[idx].path))
+        .toList();
 
     try {
       await Share.shareXFiles(filesToShare, text: 'Check out these PDFs!');
@@ -187,6 +209,7 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
+  /// Cancels selection mode entirely
   void _cancelSelection() {
     setState(() {
       _selectedIndices.clear();
@@ -196,104 +219,151 @@ class _FilesScreenState extends State<FilesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final itemCount = widget.pdfs.length;
+    final isEmpty = itemCount == 0;
+    final allSelected = _selectedIndices.length == itemCount && itemCount > 0;
+
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: _selectionMode
-          ? AppBar(
-              title: Text('${_selectedIndices.length} Selected'),
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.share),
-                  onPressed: _shareSelectedPdfs,
-                  tooltip: 'Share',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete),
-                  onPressed: _confirmDeleteSelectedPdfs,
-                  tooltip: 'Delete',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: _cancelSelection,
-                  tooltip: 'Cancel',
-                ),
-              ],
-            )
-          : AppBar(
-              toolbarHeight: 70,
-              elevation: 0,
-              centerTitle: false,
-              backgroundColor: Colors.transparent,
-              title: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Files',
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            floating: false,
+            expandedHeight: 100,
+            centerTitle: false,
+            backgroundColor: theme.colorScheme.background,
+            elevation: 0,
+
+            // Leading button to cancel selection if in selection mode
+            leading: _selectionMode
+                ? IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: _cancelSelection,
+                    tooltip: 'Cancel Selection',
+                  )
+                : null,
+
+            // Title logic
+            title: _selectionMode
+                ? Text(
+                    'Select(${_selectedIndices.length})',
                     style: TextStyle(
-                      fontSize: 24,
+                      color: theme.colorScheme.primary,
                       fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
                     ),
-                  ),
-                ],
-              ),
+                  )
+                : null,
+
+            // Action buttons
+            actions: _selectionMode
+                ? [
+                    // Select All / Deselect All
+                    IconButton(
+                      icon: Icon(allSelected ? Icons.clear_all : Icons.select_all),
+                      onPressed: _selectAllOrNone,
+                      tooltip: allSelected ? 'Deselect All' : 'Select All',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.share),
+                      onPressed: _shareSelectedPdfs,
+                      tooltip: 'Share',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete),
+                      onPressed: _confirmDeleteSelectedPdfs,
+                      tooltip: 'Delete',
+                    ),
+                  ]
+                : null,
+
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: const EdgeInsets.only(left: 16, bottom: 12),
+              title: !_selectionMode
+                  ? Text(
+                      'Files',
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
             ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: Theme.of(context).brightness == Brightness.dark
-                ? [const Color(0xFF262626), const Color(0xFF3A3A3A)]
-                : [const Color(0xFFFDFDFD), const Color(0xFFEFEFEF)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
           ),
-        ),
-        child: widget.pdfs.isEmpty
-            ? const Center(
+
+          // Body content
+          if (isEmpty)
+            SliverFillRemaining(
+              child: Center(
                 child: Text(
                   'No PDFs available.',
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                   textAlign: TextAlign.center,
                 ),
-              )
-            : ListView.builder(
-                itemCount: widget.pdfs.length,
-                itemBuilder: (context, index) {
+              ),
+            )
+          else
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
                   final file = widget.pdfs[index];
                   final isSelected = _selectedIndices.contains(index);
-                  return GestureDetector(
-                    onTap: () => _onPdfTap(index),
-                    onLongPress: () => _onPdfLongPress(index),
-                    child: Container(
-                      color: isSelected
-                          ? Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withOpacity(0.3)
-                          : Colors.transparent,
-                      child: ListTile(
-                        leading:
-                            const Icon(Icons.picture_as_pdf, color: Colors.red),
-                        title: Text(
-                          file.path.split('/').last,
-                          style: TextStyle(
-                            color: Theme.of(context)
-                                .textTheme
-                                .bodyLarge
-                                ?.color,
-                          ),
-                        ),
-                        trailing: isSelected
-                            ? const Icon(Icons.check_circle, color: Colors.white)
-                            : null,
-                      ),
-                    ),
-                  );
+                  return _buildPdfTile(file, index, isSelected);
                 },
+                childCount: itemCount,
               ),
+            ),
+        ],
       ),
     );
+  }
+
+  /// Builds a single tile representing a PDF file.
+  Widget _buildPdfTile(File file, int index, bool isSelected) {
+    final theme = Theme.of(context);
+    final fileName = file.path.split('/').last;
+
+    return GestureDetector(
+      onTap: () => _onPdfTap(index),
+      onLongPress: () => _onPdfLongPress(index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        color: isSelected
+            ? theme.colorScheme.primary.withOpacity(0.3)
+            : Colors.transparent,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+          title: Text(
+            fileName,
+            style: TextStyle(
+              color: theme.textTheme.bodyLarge?.color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          trailing: isSelected
+              ? const Icon(Icons.check_circle, color: Colors.white)
+              : null,
+        ),
+      ),
+    );
+  }
+
+  /// Select All / Deselect All logic
+  void _selectAllOrNone() {
+    final allSelected = _selectedIndices.length == widget.pdfs.length;
+    setState(() {
+      if (allSelected) {
+        _selectedIndices.clear();
+        _selectionMode = false;
+      } else {
+        _selectedIndices = Set.from(
+          List.generate(widget.pdfs.length, (i) => i),
+        );
+        _selectionMode = true;
+      }
+    });
   }
 }
 
@@ -306,6 +376,7 @@ class PdfViewerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Use a gradient or other background you like
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -325,9 +396,8 @@ class PdfViewerScreen extends StatelessWidget {
                 child: PDFView(
                   filePath: path,
                   enableSwipe: true,
-                  nightMode: false,
                   swipeHorizontal: true,
-                  autoSpacing: false,
+                  autoSpacing: true,
                   pageFling: true,
                 ),
               ),

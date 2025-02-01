@@ -27,9 +27,7 @@ class _FullScreenImageState extends State<FullScreenImage> {
 
   /// Launches the image editor to allow users to edit the image.
   Future<void> _launchEditor() async {
-    setState(() {
-      _isEditing = true;
-    });
+    setState(() => _isEditing = true);
 
     try {
       Uint8List imageData = await _editedImage.readAsBytes();
@@ -41,16 +39,16 @@ class _FullScreenImageState extends State<FullScreenImage> {
         ),
       );
 
-      if (editedImageBytes != null && editedImageBytes is Uint8List) {
+      if (editedImageBytes is Uint8List) {
+        // Overwrite the original file with the edited version
         await _editedImage.writeAsBytes(editedImageBytes);
 
         setState(() {
           _imageVersion++;
+          // Clear image cache to force the updated file to reload
+          PaintingBinding.instance.imageCache.clear();
+          PaintingBinding.instance.imageCache.clearLiveImages();
         });
-
-        // Clear image cache to force reload
-        PaintingBinding.instance.imageCache.clear();
-        PaintingBinding.instance.imageCache.clearLiveImages();
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Image edited successfully!')),
@@ -61,21 +59,21 @@ class _FullScreenImageState extends State<FullScreenImage> {
         SnackBar(content: Text('Error editing image: $e')),
       );
     } finally {
-      setState(() {
-        _isEditing = false;
-      });
+      setState(() => _isEditing = false);
     }
   }
 
+  /// Returns the edited image to the previous screen
   void _saveImage() {
-    // Return the edited image file to the previous screen
     Navigator.pop(context, _editedImage);
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      // Subtle gradient
+      // We wrap everything in a gradient background
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -85,9 +83,15 @@ class _FullScreenImageState extends State<FullScreenImage> {
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              AppBar(
+          child: CustomScrollView(
+            slivers: [
+              // SliverAppBar pinned at the top
+              SliverAppBar(
+                pinned: true,
+                expandedHeight: 100,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                // If we are editing, we show "Editing..." in the title
                 title: _isEditing
                     ? const Text(
                         'Editing...',
@@ -99,10 +103,11 @@ class _FullScreenImageState extends State<FullScreenImage> {
                       )
                     : const Text(
                         'Full Image',
-                        style:
-                            TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                backgroundColor: Colors.transparent,
                 actions: _isEditing
                     ? []
                     : [
@@ -118,7 +123,10 @@ class _FullScreenImageState extends State<FullScreenImage> {
                         ),
                       ],
               ),
-              Expanded(
+
+              // Displays the image, filling the remaining space
+              SliverFillRemaining(
+                hasScrollBody: false,
                 child: Center(
                   child: Image.file(
                     _editedImage,

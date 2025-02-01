@@ -2,23 +2,16 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:image/image.dart' as img;
+import 'package:lottie/lottie.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
-import 'package:lottie/lottie.dart';
-import 'package:image/image.dart' as img;
 
 import 'edit_photo.dart'; // For FullScreenImage screen
 
-/// The HomeScreen displays a grid of captured photos and provides:
-/// - Editing (FullScreenImage)
-/// - Sharing
-/// - Deleting
-/// - Generating PDFs
-/// - A "Select All" feature
-/// - An Import button (passed from MainScreen)
+/// A redesigned HomeScreen using a Sliver-based layout for a modern UI.
+/// All underlying logic (selection, PDF generation, etc.) remains unchanged.
 class HomeScreen extends StatefulWidget {
-  final String appName;
   final List<File> photos;
   final Future<void> Function() onSave;
   final void Function(File) onPdfGenerated;
@@ -28,7 +21,6 @@ class HomeScreen extends StatefulWidget {
 
   const HomeScreen({
     Key? key,
-    required this.appName,
     required this.photos,
     required this.onSave,
     required this.onPdfGenerated,
@@ -81,10 +73,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     try {
-      // Just adding a small delay to let the animation show
       await Future.wait([
         _generatePdfInternal(),
-        Future.delayed(const Duration(seconds: 2)),
+        Future.delayed(const Duration(seconds: 2)), // show loading animation
       ]);
 
       setState(() {
@@ -100,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
         SnackBar(content: Text('Error generating PDF: $e')),
       );
     } finally {
-      Navigator.pop(context);
+      Navigator.pop(context); // remove loading dialog
     }
   }
 
@@ -149,10 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _deleteSelectedPhotos() {
     if (_selectedIndices.isEmpty) return;
 
-    List<File> photosToDelete = [];
-    for (var idx in _selectedIndices) {
-      photosToDelete.add(widget.photos[idx]);
-    }
+    final List<File> photosToDelete = _selectedIndices.map((i) => widget.photos[i]).toList();
 
     setState(() {
       widget.photos.removeWhere((photo) => photosToDelete.contains(photo));
@@ -176,10 +164,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _shareSelectedPhotos() async {
     if (_selectedIndices.isEmpty) return;
 
-    List<XFile> filesToShare = [];
-    for (var idx in _selectedIndices) {
-      filesToShare.add(XFile(widget.photos[idx].path));
-    }
+    List<XFile> filesToShare = _selectedIndices
+        .map((idx) => XFile(widget.photos[idx].path))
+        .toList();
 
     try {
       await Share.shareXFiles(filesToShare, text: 'Check out these photos!');
@@ -234,173 +221,197 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final allSelected = _selectedIndices.length == widget.photos.length;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        toolbarHeight: 70,
-        elevation: 0,
-        centerTitle: false,
-        title: _selectionMode
-            ? Text(
-                'Selected (${_selectedIndices.length})',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    widget.appName,
+      body: CustomScrollView(
+        slivers: [
+          /// App Bar
+          SliverAppBar(
+            pinned: true,
+            floating: false,
+            expandedHeight: 120,
+            elevation: 0,
+            backgroundColor: theme.colorScheme.background,
+            leading: _selectionMode
+                ? IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () {
+                      setState(() {
+                        _selectedIndices.clear();
+                        _selectionMode = false;
+                      });
+                    },
+                    tooltip: 'Cancel Selection',
+                  )
+                : null,
+            centerTitle: false,
+            title: _selectionMode
+                ? Text(
+                    'Selected (${_selectedIndices.length})',
                     style: TextStyle(
-                      fontSize: 24,
+                      color: theme.colorScheme.primary,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
                     ),
-                  ),
-                  Row(
-                    children: [
-                      // Import Photos Button
-                      IconButton(
-                        icon: const Icon(Icons.photo_sharp),
-                        onPressed: widget.onImportPhotos,
-                        tooltip: 'Import Photos',
+                  )
+                : null,
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: const EdgeInsets.only(left: 16, bottom: 12),
+              title: (!_selectionMode)
+                  ? Text(
+                      'Photos',
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
                       ),
-
-                      // Settings Button
-                      IconButton(
-                        icon: const Icon(Icons.settings),
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/settings');
-                        },
-                        tooltip: 'Settings',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-        backgroundColor: Colors.transparent,
-        actions: _selectionMode
-            ? [
+                    )
+                  : null,
+            ),
+            actions: [
+              if (_selectionMode) ...[
                 IconButton(
-                  icon: Icon(allSelected ? Icons.clear_all : Icons.select_all),
+                  icon: Icon(
+                    allSelected ? Icons.clear_all : Icons.select_all,
+                    color: theme.colorScheme.primary,
+                  ),
                   onPressed: _selectAllOrNone,
                   tooltip: allSelected ? 'Deselect All' : 'Select All',
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete),
+                  icon: Icon(Icons.delete, color: theme.colorScheme.primary),
                   onPressed: _deleteSelectedPhotos,
                   tooltip: 'Delete',
                 ),
                 IconButton(
-                  icon: const Icon(Icons.share),
+                  icon: Icon(Icons.share, color: theme.colorScheme.primary),
                   onPressed: _shareSelectedPhotos,
                   tooltip: 'Share',
                 ),
                 IconButton(
-                  icon: const Icon(Icons.picture_as_pdf),
+                  icon: Icon(Icons.picture_as_pdf, color: theme.colorScheme.primary),
                   onPressed: _generatePdf,
                   tooltip: 'Generate PDF',
                 ),
-              ]
-            : null,
-      ),
-      body: widget.photos.isEmpty
-          ? const Center(
-              child: Text(
-                'Tap the camera button to take a photo or import from gallery.',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-            )
-          : GridView.builder(
-              padding: const EdgeInsets.all(12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: widget.photos.length,
-              itemBuilder: (context, index) {
-                final isSelected = _selectedIndices.contains(index);
-                return GestureDetector(
-                  onTap: () {
-                    if (_selectionMode) {
-                      _toggleSelection(index);
-                    } else {
-                      _openFullScreenImage(index);
-                    }
+              ] else ...[
+                IconButton(
+                  icon: const Icon(Icons.photo_sharp),
+                  onPressed: widget.onImportPhotos,
+                  tooltip: 'Import Photos',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/settings');
                   },
-                  onLongPress: () => _toggleSelection(index),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withOpacity(0.3),
-                                blurRadius: 8,
-                                spreadRadius: 2,
-                              )
-                            ]
-                          : [],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: Image.file(
-                              widget.photos[index],
-                              fit: BoxFit.cover,
-                              key: ValueKey(
-                                widget.photos[index].path +
-                                    (isSelected ? 'selected' : ''),
-                              ),
-                              frameBuilder: (context, child, frame,
-                                  wasSynchronouslyLoaded) {
-                                if (wasSynchronouslyLoaded) return child;
-                                return AnimatedOpacity(
-                                  opacity: frame == null ? 0 : 1,
-                                  duration: const Duration(seconds: 1),
-                                  child: child,
-                                );
-                              },
-                            ),
-                          ),
-                          if (isSelected)
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withOpacity(0.5),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.check_circle,
-                                  color: Colors.white,
-                                  size: 32,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                  tooltip: 'Settings',
+                ),
+              ],
+            ],
+          ),
+
+          /// Body
+          widget.photos.isEmpty
+              ? SliverFillRemaining(
+                  child: Center(
+                    child: Text(
+                      'Tap the camera button to take a photo\nor import from gallery.',
+                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                );
-              },
-            ),
+                )
+              : SliverPadding(
+                  padding: const EdgeInsets.all(12.0),
+                  sliver: SliverGrid(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final isSelected = _selectedIndices.contains(index);
+                        final photo = widget.photos[index];
+                        return GestureDetector(
+                          onTap: () {
+                            if (_selectionMode) {
+                              _toggleSelection(index);
+                            } else {
+                              _openFullScreenImage(index);
+                            }
+                          },
+                          onLongPress: () => _toggleSelection(index),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: theme.colorScheme.primary
+                                            .withOpacity(0.3),
+                                        blurRadius: 8,
+                                        spreadRadius: 2,
+                                      )
+                                    ]
+                                  : [],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: Image.file(
+                                      photo,
+                                      fit: BoxFit.cover,
+                                      key: ValueKey(
+                                        photo.path +
+                                            (isSelected ? 'selected' : ''),
+                                      ),
+                                      frameBuilder: (context, child, frame,
+                                          wasSynchronouslyLoaded) {
+                                        if (wasSynchronouslyLoaded) {
+                                          return child;
+                                        }
+                                        return AnimatedOpacity(
+                                          opacity: frame == null ? 0 : 1,
+                                          duration: const Duration(seconds: 1),
+                                          child: child,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary
+                                            .withOpacity(0.5),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.check_circle,
+                                          color: Colors.white,
+                                          size: 32,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      childCount: widget.photos.length,
+                    ),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
+                  ),
+                ),
+        ],
+      ),
     );
   }
 }
