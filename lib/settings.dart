@@ -1,9 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:emailjs/emailjs.dart' as EmailJS; // <-- EmailJS import
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:emailjs/emailjs.dart' as EmailJS; // <-- Add the EmailJS import
-
-import 'main.dart'; // For kAppVersion
 
 class SettingsScreen extends StatefulWidget {
   final bool isDarkTheme;
@@ -22,7 +20,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String? _photosDirectory;
   String? _pdfsDirectory;
-  
+
+  // Use the same version as in your main file (or update accordingly)
   String get kAppVersion => "0.1.5";
 
   @override
@@ -53,7 +52,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Show bottom sheet with extra spacing, a "Select Type" dropdown, and a big text field.
+  /// Opens a bottom sheet that uses Material 3 styling (with extra padding,
+  /// a dropdown for selecting feedback type, and a large text field)
   void _openFeedbackForm() {
     showModalBottomSheet(
       context: context,
@@ -63,14 +63,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       builder: (BuildContext context) {
         final theme = Theme.of(context);
-
-        // Track the dropdown value for "feedback type"
         String? feedbackType;
         final TextEditingController feedbackController = TextEditingController();
 
         return Padding(
           padding: EdgeInsets.only(
-            // Ensure bottom sheet doesn't get covered by the keyboard
             left: 16,
             right: 16,
             top: 24,
@@ -81,12 +78,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Text(
                 'Share Your Thoughts',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-
               // "Select Type" Dropdown
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(
@@ -103,7 +97,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               const SizedBox(height: 16),
-
               // Multi-line text field for feedback
               TextField(
                 controller: feedbackController,
@@ -116,7 +109,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-
               // Action buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -130,7 +122,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onPressed: () async {
                       final feedback = feedbackController.text.trim();
                       if (feedback.isEmpty || feedbackType == null) {
-                        // Show a simple prompt and return
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Please select type & enter feedback.')),
                         );
@@ -138,8 +129,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       }
 
                       final success = await _sendFeedbackEmail(feedbackType!, feedback);
-
-                      // Clear the text field and close the sheet
                       feedbackController.clear();
                       Navigator.pop(context);
 
@@ -170,22 +159,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Sends the email with EmailJS. Make sure to configure your EmailJS service properly.
-  /// Replace YOUR_SERVICE_ID, YOUR_TEMPLATE_ID, and YOUR_PUBLIC_KEY with your actual EmailJS IDs.
+  /// Sends the email with EmailJS. Be sure to configure your EmailJS service properly.
+  /// Replace the service ID, template ID, and public key with your actual values.
   Future<bool> _sendFeedbackEmail(String type, String feedback) async {
-
     try {
-      // The "params" here must match your EmailJS template variables
       await EmailJS.send(
         'service_xg0zung',
         'template_6yjljvi',
         {
           'user_id': 'Snh_1YI8Oz07iuS5R',
           'template_params': {
-            'feedback_type': 'Suggestion',
-            'feedback_message': 'This is my suggestion...',
+            'feedback_type': type,
+            'feedback_message': feedback,
             'to_email': 'krishnak.pilato@gmail.com',
-            // etc. More variables if your template requires them
           },
         },
       );
@@ -205,15 +191,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         title: Text(
           'Settings',
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.all(16),
         children: [
-          // --- Appearance ---
+          // Appearance Section
           Text(
             'Appearance',
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -229,8 +213,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           const Divider(height: 32),
-
-          // --- Directories ---
+          // Directories Section
           Text(
             'Directories',
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -261,8 +244,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const Divider(height: 32),
-
-          // --- Feedback ---
+          // Feedback Section
           Text(
             'Feedback',
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -275,11 +257,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'I’d love to hear from you!',
               style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
-            onTap: _openFeedbackForm, // now uses EmailJS
+            onTap: _openFeedbackForm,
           ),
           const Divider(height: 32),
-
-          // --- About ---
+          // About Section
           Text(
             'About',
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -294,9 +275,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           ListTile(
-            leading: Icon(Icons.code),
-            title: Text('Open Source Licenses'),
-            subtitle: Text("View libraries used in this app."),
+            leading: const Icon(Icons.code),
+            title: const Text('Open Source Licenses'),
+            subtitle: const Text("View libraries used in this app."),
             onTap: () {
               showLicensePage(context: context);
             },

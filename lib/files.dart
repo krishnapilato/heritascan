@@ -523,7 +523,6 @@ class PdfViewerScreen extends StatelessWidget {
                 child: PDFView(
                   filePath: path,
                   enableSwipe: true,
-                  swipeHorizontal: true,
                   autoSpacing: true,
                   pageFling: true,
                 ),

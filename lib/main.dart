@@ -136,7 +136,8 @@ class _MyAppState extends State<MyApp> {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            textStyle: const TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -164,7 +165,8 @@ class _MyAppState extends State<MyApp> {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            textStyle: const TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -216,22 +218,16 @@ class _InitialScreenState extends State<InitialScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Display a loading indicator while checking the setup.
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF80D0C7), Color(0xFFF9D423)],
+            colors: [
+              Color.fromARGB(255, 7, 7, 7),
+              Color.fromARGB(255, 2, 2, 2)
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-          ),
-        ),
-        child: Center(
-          child: Lottie.network(
-            'https://assets10.lottiefiles.com/packages/lf20_usmfx6bp.json',
-            width: 150,
-            height: 150,
-            fit: BoxFit.contain,
           ),
         ),
       ),
@@ -323,7 +319,6 @@ class _SetupScreenState extends State<SetupScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-
                       // PDFs Directory
                       Card(
                         elevation: 3,
@@ -344,7 +339,6 @@ class _SetupScreenState extends State<SetupScreen> {
                         ),
                       ),
                       const Spacer(),
-
                       // Save Settings Button
                       ElevatedButton(
                         onPressed: _saveDirectories,
@@ -366,6 +360,8 @@ class _SetupScreenState extends State<SetupScreen> {
 }
 
 /// The MainScreen hosts the primary functionalities of the app, including Home and Files tabs.
+/// The bottom navigation bar now includes three items. The middle item is a "Take Photo" action
+/// which, when tapped, triggers the photo capture without switching screens.
 class MainScreen extends StatefulWidget {
   final ValueChanged<bool> onToggleTheme;
   final bool isDarkTheme;
@@ -381,7 +377,8 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  // _selectedScreenIndex: 0 for HomeScreen, 1 for FilesScreen.
+  int _selectedScreenIndex = 0;
   final List<File> _photos = [];
   final List<File> _pdfs = [];
 
@@ -512,16 +509,26 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  /// Navigation logic for bottom nav bar
+  /// Navigation logic for the bottom navigation bar.
+  /// The bar has three destinations:
+  /// - Index 0: Home screen.
+  /// - Index 1: Take Photo action (does not change the current screen).
+  /// - Index 2: Files screen.
   void _onNavIndexChanged(int newIndex) {
+    if (newIndex == 1) {
+      // When the middle icon is tapped, trigger the take photo action.
+      _takePhoto();
+      return;
+    }
     setState(() {
-      _currentIndex = newIndex;
+      // Map bottom nav index to screen index: 0 -> Home, 2 -> Files.
+      _selectedScreenIndex = newIndex == 0 ? 0 : 1;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Each nav item shows a different screen
+    // Each nav item shows a different screen.
     final screens = [
       HomeScreen(
         photos: _photos,
@@ -537,6 +544,11 @@ class _MainScreenState extends State<MainScreen> {
       FilesScreen(pdfs: _pdfs),
     ];
 
+    // Determine the selected index for the NavigationBar.
+    // If _selectedScreenIndex is 0, then nav index 0 (Home) is selected;
+    // if _selectedScreenIndex is 1, then nav index 2 (Files) is selected.
+    int navBarSelectedIndex = _selectedScreenIndex == 0 ? 0 : 2;
+
     return Scaffold(
       // Subtle background gradient
       body: Container(
@@ -544,23 +556,26 @@ class _MainScreenState extends State<MainScreen> {
           gradient: LinearGradient(
             colors: widget.isDarkTheme
                 ? [const Color(0xFF181818), const Color(0xFF434343)]
-                : [const Color(0xFFECF0F1), const Color(0xFFFFFFFF)],
+                : [const Color.fromARGB(255, 198, 202, 203), const Color.fromARGB(255, 234, 232, 232)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
         ),
-        child: screens[_currentIndex],
+        child: screens[_selectedScreenIndex],
       ),
 
-      // Material 3 NavigationBar for a clean look
+      // Material 3 NavigationBar with three destinations.
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
+        selectedIndex: navBarSelectedIndex,
         onDestinationSelected: _onNavIndexChanged,
-        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_rounded),
             label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.photo_camera),
+            label: 'Photo',
           ),
           NavigationDestination(
             icon: Icon(Icons.folder_shared_rounded),
@@ -568,16 +583,6 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
       ),
-
-      // Floating Action Button for taking a photo
-      floatingActionButton: FloatingActionButton(
-        onPressed: _takePhoto,
-        tooltip: 'Take Photo',
-        mini: true,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        child: const Icon(Icons.camera_enhance_rounded, size: 15),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
