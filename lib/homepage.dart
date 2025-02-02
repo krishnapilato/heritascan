@@ -64,69 +64,56 @@ class _HomeScreenState extends State<HomeScreen> {
                   )
                 : null,
             centerTitle: false,
-            title: _selectionMode
-                ? Text(
-                    'Selected (${_selectedIndices.length})',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                : null,
+            title: Text(
+              _selectionMode
+                  ? 'Selected (${_selectedIndices.length})'
+                  : 'Images',
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             actions: [
               if (_selectionMode) ...[
-                // Select/Deselect All
                 IconButton(
-                  icon: Icon(
-                    allSelected ? Icons.clear_all : Icons.select_all,
-                  ),
+                  icon: Icon(allSelected ? Icons.clear_all : Icons.select_all),
                   onPressed: _selectAllOrNone,
                   tooltip: allSelected ? 'Deselect All' : 'Select All',
                 ),
                 IconButton(
-                  icon: Icon(Icons.delete),
+                  icon: const Icon(Icons.delete),
                   onPressed: _deleteSelectedPhotos,
                   tooltip: 'Delete',
                 ),
                 IconButton(
-                  icon: Icon(Icons.share),
+                  icon: const Icon(Icons.share),
                   onPressed: _shareSelectedPhotos,
                   tooltip: 'Share',
                 ),
                 IconButton(
-                  icon: Icon(Icons.picture_as_pdf),
+                  icon: const Icon(Icons.picture_as_pdf),
                   onPressed: _generatePdf,
                   tooltip: 'Generate PDF',
                 ),
               ] else ...[
-                // Toggle layout button (2 or 3 columns)
                 IconButton(
-                  icon: Icon(_gridColumns == 2
-                      ? Icons.grid_3x3_rounded
-                      : Icons.grid_view_rounded),
+                  icon: Icon(
+                    _gridColumns == 2
+                        ? Icons.grid_view_rounded
+                        : Icons.looks_two,
+                  ),
                   onPressed: _toggleGalleryLayout,
                   tooltip: 'Toggle Layout',
                 ),
                 IconButton(
                   icon: const Icon(Icons.settings_rounded),
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/settings');
-                  },
+                  onPressed: () => Navigator.pushNamed(context, '/settings'),
                   tooltip: 'Settings',
                 ),
               ],
             ],
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.only(left: 16, bottom: 12),
-              title: (!_selectionMode)
-                  ? Text(
-                      'Photos',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
+            flexibleSpace: const FlexibleSpaceBar(
+              titlePadding: EdgeInsets.zero, // Remove any unwanted spacing
             ),
           ),
 

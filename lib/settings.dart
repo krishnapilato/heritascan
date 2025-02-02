@@ -146,7 +146,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: const [
                         Text('Send'),
                         SizedBox(width: 4),
-                        Icon(Icons.send),
+                        Icon(Icons.send_rounded),
                       ],
                     ),
                   ),
@@ -267,7 +267,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 8),
           ListTile(
-            leading: const Icon(Icons.info_outline),
+            leading: const Icon(Icons.info_rounded),
             title: const Text('App Version'),
             subtitle: Text(
               kAppVersion,
@@ -275,7 +275,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.code),
+            leading: const Icon(Icons.code_rounded),
             title: const Text('Open Source Licenses'),
             subtitle: const Text("View libraries used in this app."),
             onTap: () {

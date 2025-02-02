@@ -357,7 +357,7 @@ class _FilesScreenState extends State<FilesScreen> {
                         },
                       )
                     : Text(
-                        'Files',
+                        'Documents',
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.w800,
@@ -426,7 +426,7 @@ class _FilesScreenState extends State<FilesScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Tap the camera button to take a photo\nor import from gallery.',
+                      'No documents available\n Try to create a new one.',
                       style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                       textAlign: TextAlign.center,
                     ),

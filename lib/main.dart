@@ -451,7 +451,7 @@ class _MainScreenState extends State<MainScreen> {
         return AlertDialog(
           title: const Text('Image source'),
           content: const Text(
-              'Would you like to upload or capture??'),
+              'Would you like to upload or capture?'),
           actions: [
             TextButton.icon(
               onPressed: () => Navigator.pop(context, 'upload'),
