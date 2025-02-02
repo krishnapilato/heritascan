@@ -68,7 +68,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? Text(
                     'Selected (${_selectedIndices.length})',
                     style: TextStyle(
-                      color: theme.colorScheme.primary,
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
@@ -80,39 +79,36 @@ class _HomeScreenState extends State<HomeScreen> {
                 IconButton(
                   icon: Icon(
                     allSelected ? Icons.clear_all : Icons.select_all,
-                    color: theme.colorScheme.primary,
                   ),
                   onPressed: _selectAllOrNone,
                   tooltip: allSelected ? 'Deselect All' : 'Select All',
                 ),
                 IconButton(
-                  icon: Icon(Icons.delete, color: theme.colorScheme.primary),
+                  icon: Icon(Icons.delete),
                   onPressed: _deleteSelectedPhotos,
                   tooltip: 'Delete',
                 ),
                 IconButton(
-                  icon: Icon(Icons.share, color: theme.colorScheme.primary),
+                  icon: Icon(Icons.share),
                   onPressed: _shareSelectedPhotos,
                   tooltip: 'Share',
                 ),
                 IconButton(
-                  icon: Icon(Icons.picture_as_pdf, color: theme.colorScheme.primary),
+                  icon: Icon(Icons.picture_as_pdf),
                   onPressed: _generatePdf,
                   tooltip: 'Generate PDF',
                 ),
               ] else ...[
                 // Toggle layout button (2 or 3 columns)
                 IconButton(
-                  icon: Icon(
-                    _gridColumns == 2 ? Icons.grid_3x3_outlined : Icons.grid_view,
-                    color: theme.colorScheme.primary,
-                  ),
+                  icon: Icon(_gridColumns == 2
+                      ? Icons.grid_3x3_rounded
+                      : Icons.grid_view_rounded),
                   onPressed: _toggleGalleryLayout,
                   tooltip: 'Toggle Layout',
                 ),
                 IconButton(
-                  icon: const Icon(Icons.settings),
-                  color: theme.colorScheme.primary,
+                  icon: const Icon(Icons.settings_rounded),
                   onPressed: () {
                     Navigator.pushNamed(context, '/settings');
                   },
@@ -126,7 +122,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? Text(
                       'Photos',
                       style: TextStyle(
-                        color: theme.colorScheme.primary,
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                       ),
@@ -139,10 +134,22 @@ class _HomeScreenState extends State<HomeScreen> {
           if (isEmpty)
             SliverFillRemaining(
               child: Center(
-                child: Text(
-                  'Tap the camera button to take a photo\nor import from gallery.',
-                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                  textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Lottie.network(
+                      'https://assets10.lottiefiles.com/packages/lf20_jcikwtux.json',
+                      width: 150,
+                      height: 150,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Tap the camera button to take a photo\nor import from gallery.',
+                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               ),
             )
@@ -180,8 +187,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: theme.colorScheme.primary
-                                        .withOpacity(0.25),
                                     blurRadius: 8,
                                     spreadRadius: 2,
                                   )
@@ -224,7 +229,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               // Overlay if selected
                               if (isSelected)
                                 Container(
-                                  color: theme.colorScheme.primary.withOpacity(0.4),
+                                  color: theme.colorScheme.primary
+                                      .withOpacity(0.4),
                                   child: const Center(
                                     child: Icon(
                                       Icons.check_circle,
@@ -293,9 +299,35 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // Deletion
-  void _deleteSelectedPhotos() {
+  Future<void> _deleteSelectedPhotos() async {
     if (_selectedIndices.isEmpty) return;
 
+    // Ask for confirmation before deleting
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Photos'),
+          content: const Text(
+              'Are you sure you want to delete the selected photos?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+
+    // If not confirmed, do nothing.
+    if (confirm != true) return;
+
+    // Proceed with deletion if confirmed.
     final photosToDelete =
         _selectedIndices.map((i) => widget.photos[i]).toList();
 
@@ -307,7 +339,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     widget.onSave(); // Persist updated photos list
 
-    // Delete files from disk
+    // Delete files from disk.
     for (var photo in photosToDelete) {
       if (photo.existsSync()) {
         photo.deleteSync();
@@ -419,7 +451,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (decoded == null) {
       throw Exception('Failed to decode image.');
     }
-    final List<int> compressed = img.encodeJpg(decoded, quality: quality ?? 100);
+    final List<int> compressed =
+        img.encodeJpg(decoded, quality: quality ?? 100);
     return Uint8List.fromList(compressed);
   }
 

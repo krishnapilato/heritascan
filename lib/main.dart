@@ -6,7 +6,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_document_scanner/flutter_document_scanner.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'files.dart';
@@ -445,63 +444,124 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-Future<void> _takePhoto() async {
-  try {
-    // Create a fresh controller for each scan.
-    final DocumentScannerController controller = DocumentScannerController();
-
-    // Create a completer to capture the image bytes from onSave.
-    final Completer<Uint8List> completer = Completer<Uint8List>();
-
-    // Push the DocumentScanner widget.
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DocumentScanner(
-          controller: controller,
-          onSave: (Uint8List imageBytes) {
-            if (!completer.isCompleted) {
-              completer.complete(imageBytes);
-            }
-            Navigator.pop(context);
-          },
-        ),
-      ),
+  Future<void> _choosePhotoOption() async {
+    final String? option = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Image source'),
+          content: const Text(
+              'Would you like to upload or capture??'),
+          actions: [
+            TextButton.icon(
+              onPressed: () => Navigator.pop(context, 'upload'),
+              icon: const Icon(Icons.upload_file_rounded),
+              label: const Text('Upload'),
+            ),
+            TextButton.icon(
+              onPressed: () => Navigator.pop(context, 'take'),
+              icon: const Icon(Icons.camera_alt_rounded),
+              label: const Text('Take new photo'),
+            ),
+          ],
+        );
+      },
     );
 
-    // Await the scanned image bytes.
-    final Uint8List scannedImageBytes = await completer.future;
-
-    // Ensure the photos directory exists.
-    final Directory photosDir = Directory(_photosDirectory!);
-    if (!await photosDir.exists()) {
-      await photosDir.create(recursive: true);
+    if (option == 'upload') {
+      await _uploadPhoto();
+    } else if (option == 'take') {
+      await _takeNewPhoto();
     }
-
-    // Create a unique file path and save the scanned image as JPEG.
-    final String newPath =
-        '${photosDir.path}/scanned_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final File savedPhoto =
-        await File(newPath).writeAsBytes(scannedImageBytes);
-
-    // Update UI and persist the photo.
-    setState(() {
-      _photos.add(savedPhoto);
-    });
-    await _savePhotos();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Document scanned and saved successfully!'),
-      ),
-    );
-  } catch (e) {
-    debugPrint('Error scanning document: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error scanning document: $e')),
-    );
   }
-}
+
+  /// Takes a new photo using the camera (with a confirmation dialog).
+  Future<void> _takeNewPhoto() async {
+    try {
+      // Initialize the ImagePicker and open the camera.
+      final ImagePicker picker = ImagePicker();
+      final XFile? imageFile =
+          await picker.pickImage(source: ImageSource.camera);
+
+      // If the user cancels the image capture, exit the function.
+      if (imageFile == null) return;
+
+      // Read the image bytes from the captured image.
+      final Uint8List imageBytes = await imageFile.readAsBytes();
+
+      // Ensure that the photos directory exists.
+      final Directory photosDir = Directory(_photosDirectory!);
+      if (!await photosDir.exists()) {
+        await photosDir.create(recursive: true);
+      }
+
+      // Generate a unique file path and save the image as a JPEG.
+      final String newPath =
+          '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final File savedPhoto = await File(newPath).writeAsBytes(imageBytes);
+
+      // Update the UI with the new photo and persist the photo list.
+      setState(() {
+        _photos.add(savedPhoto);
+      });
+      await _savePhotos();
+
+      // Notify the user that the photo was taken and saved successfully.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photo taken and saved successfully!')),
+      );
+    } catch (e) {
+      // Log the error and notify the user if something goes wrong.
+      debugPrint('Error taking photo: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error taking photo: $e')),
+      );
+    }
+  }
+
+  /// Uploads an image from the gallery.
+  Future<void> _uploadPhoto() async {
+    try {
+      // Initialize the ImagePicker and open the gallery.
+      final ImagePicker picker = ImagePicker();
+      final XFile? imageFile =
+          await picker.pickImage(source: ImageSource.gallery);
+
+      // If the user cancels the selection, exit the function.
+      if (imageFile == null) return;
+
+      // Read the image bytes.
+      final Uint8List imageBytes = await imageFile.readAsBytes();
+
+      // Ensure that the photos directory exists.
+      final Directory photosDir = Directory(_photosDirectory!);
+      if (!await photosDir.exists()) {
+        await photosDir.create(recursive: true);
+      }
+
+      // Generate a unique file path and save the image as a JPEG.
+      final String newPath =
+          '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final File savedPhoto = await File(newPath).writeAsBytes(imageBytes);
+
+      // Update the UI with the new photo and persist the photo list.
+      setState(() {
+        _photos.add(savedPhoto);
+      });
+      await _savePhotos();
+
+      // Notify the user that the photo was uploaded and saved successfully.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photo uploaded and saved successfully!')),
+      );
+    } catch (e) {
+      // Log the error and notify the user if something goes wrong.
+      debugPrint('Error uploading photo: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error uploading photo: $e')),
+      );
+    }
+  }
 
   /// Import photos from device gallery into the photos directory
   Future<void> _importPhotos() async {
@@ -545,7 +605,7 @@ Future<void> _takePhoto() async {
   void _onNavIndexChanged(int newIndex) {
     if (newIndex == 1) {
       // When the middle icon is tapped, trigger the take photo action.
-      _takePhoto();
+      _choosePhotoOption();
       return;
     }
     setState(() {

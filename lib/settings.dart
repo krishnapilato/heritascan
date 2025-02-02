@@ -192,7 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Text(
           'Settings',
           style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-        ),
+        )
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

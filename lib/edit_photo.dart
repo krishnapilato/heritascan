@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_editor_plus/image_editor_plus.dart';
 import 'package:intl/intl.dart';
+import 'package:marquee/marquee.dart';
 import 'package:shimmer/shimmer.dart';
 
 class FullScreenImage extends StatefulWidget {
@@ -94,9 +95,8 @@ class _FullScreenImageState extends State<FullScreenImage> {
                 backgroundColor: Colors.black.withOpacity(0.3),
                 elevation: 0,
                 flexibleSpace: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.2)
-                  ),
+                  decoration:
+                      BoxDecoration(color: Colors.black.withOpacity(0.2)),
                 ),
                 title: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
@@ -106,22 +106,41 @@ class _FullScreenImageState extends State<FullScreenImage> {
                           key: ValueKey('Editing...'),
                           style: TextStyle(fontSize: 20, color: Colors.grey),
                         )
-                      : Text(
-                          _fileName,
-                          key: ValueKey('FileName'),
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      : SizedBox(
+                          key: const ValueKey('FileName'),
+                          height: 24, // Adjust this height as needed
+                          child: Marquee(
+                            text: _fileName,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            scrollAxis: Axis.horizontal,
+                            blankSpace: 20.0,
+                            velocity: 30.0,
+                            pauseAfterRound: const Duration(seconds: 1),
+                            startPadding: 10.0,
+                            accelerationDuration: const Duration(seconds: 1),
+                            accelerationCurve: Curves.linear,
+                            decelerationDuration:
+                                const Duration(milliseconds: 500),
+                            decelerationCurve: Curves.easeOut,
+                          ),
                         ),
                 ),
                 actions: _isEditing
                     ? []
                     : [
                         IconButton(
-                          icon: const Icon(Icons.edit, size: 26, color: Colors.white),
+                          icon: const Icon(Icons.edit,
+                              size: 26, color: Colors.white),
                           onPressed: _launchEditor,
                           tooltip: 'Edit Image',
                         ),
                         IconButton(
-                          icon: const Icon(Icons.check_circle, size: 26, color: Colors.greenAccent),
+                          icon: const Icon(Icons.check_circle,
+                              size: 26, color: Colors.greenAccent),
                           onPressed: _saveImage,
                           tooltip: 'Save',
                         ),
@@ -149,10 +168,22 @@ class _FullScreenImageState extends State<FullScreenImage> {
                                     ),
                                   ),
                                 )
-                              : Image.file(
-                                  _editedImage,
-                                  key: ValueKey(_imageVersion),
-                                  fit: BoxFit.contain,
+                              : InteractiveViewer(
+                                  minScale: 0.5,
+                                  maxScale: 3.0,
+                                  child: Center(
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 300,
+                                        maxHeight: 300,
+                                      ),
+                                      child: Image.file(
+                                        _editedImage,
+                                        key: ValueKey(_imageVersion),
+                                        fit: BoxFit.contain,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                         ),
                       ),
@@ -160,7 +191,8 @@ class _FullScreenImageState extends State<FullScreenImage> {
                     const SizedBox(height: 8),
                     Text(
                       'Last modified: $_lastModified',
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                     const SizedBox(height: 20),
                   ],
