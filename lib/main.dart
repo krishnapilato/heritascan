@@ -4,9 +4,10 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_document_scanner/flutter_document_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+// Removed: import 'package:flutter_document_scanner/flutter_document_scanner.dart';
 
 import 'files.dart';
 import 'homepage.dart';
@@ -53,6 +54,63 @@ class FadePageRoute<T> extends PageRouteBuilder<T> {
         );
 }
 
+/// SplashScreen widget that displays a logo for 3 seconds.
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({Key? key}) : super(key: key);
+  
+  @override
+  _SplashScreenState createState() => _SplashScreenState();
+}
+  
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Delay for 3 seconds then navigate to InitialScreen.
+    Future.delayed(const Duration(seconds: 3), () {
+      Navigator.pushReplacementNamed(context, '/');
+    });
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    // Replace with your logo asset or any widget you like.
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF4B9BE0), Color(0xFF98DBC6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // You can replace this Icon with your logo image (e.g., Image.asset('assets/logo.png'))
+              Icon(
+                Icons.camera_alt_rounded,
+                size: 100,
+                color: Colors.white,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'HeritaScan',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The root widget of the application.
 class MyApp extends StatefulWidget {
   final String initialAppName;
@@ -94,6 +152,8 @@ class _MyAppState extends State<MyApp> {
   /// A custom on-generate-route to apply the fade transition to all page navigations
   Route<dynamic> _onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case '/splash':
+        return FadePageRoute(builder: (_) => const SplashScreen());
       case '/':
         return FadePageRoute(builder: (_) => const InitialScreen());
       case '/setup':
@@ -183,7 +243,7 @@ class _MyAppState extends State<MyApp> {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
 
-      initialRoute: '/',
+      initialRoute: '/splash',
       onGenerateRoute: _onGenerateRoute,
       debugShowCheckedModeBanner: false,
     );
@@ -221,6 +281,7 @@ class _InitialScreenState extends State<InitialScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // You can show a simple loading screen or blank gradient.
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -383,7 +444,7 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedScreenIndex = 0;
   final List<File> _photos = [];
   final List<File> _pdfs = [];
-  final DocumentScannerController _controller = DocumentScannerController();
+  // Removed: DocumentScannerController since flutter_document_scanner is not used.
 
   String? _photosDirectory;
   String? _pdfsDirectory;
@@ -450,8 +511,7 @@ class _MainScreenState extends State<MainScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Image source'),
-          content: const Text(
-              'Would you like to upload or capture?'),
+          content: const Text('Would you like to upload or capture?'),
           actions: [
             TextButton.icon(
               onPressed: () => Navigator.pop(context, 'upload'),
@@ -475,43 +535,35 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  /// Takes a new photo using the camera (with a confirmation dialog).
+  /// Takes a new photo using the camera.
   Future<void> _takeNewPhoto() async {
     try {
-      // Initialize the ImagePicker and open the camera.
       final ImagePicker picker = ImagePicker();
       final XFile? imageFile =
           await picker.pickImage(source: ImageSource.camera);
 
-      // If the user cancels the image capture, exit the function.
       if (imageFile == null) return;
 
-      // Read the image bytes from the captured image.
       final Uint8List imageBytes = await imageFile.readAsBytes();
 
-      // Ensure that the photos directory exists.
       final Directory photosDir = Directory(_photosDirectory!);
       if (!await photosDir.exists()) {
         await photosDir.create(recursive: true);
       }
 
-      // Generate a unique file path and save the image as a JPEG.
       final String newPath =
           '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final File savedPhoto = await File(newPath).writeAsBytes(imageBytes);
 
-      // Update the UI with the new photo and persist the photo list.
       setState(() {
         _photos.add(savedPhoto);
       });
       await _savePhotos();
 
-      // Notify the user that the photo was taken and saved successfully.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Photo taken and saved successfully!')),
       );
     } catch (e) {
-      // Log the error and notify the user if something goes wrong.
       debugPrint('Error taking photo: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error taking photo: $e')),
@@ -522,40 +574,32 @@ class _MainScreenState extends State<MainScreen> {
   /// Uploads an image from the gallery.
   Future<void> _uploadPhoto() async {
     try {
-      // Initialize the ImagePicker and open the gallery.
       final ImagePicker picker = ImagePicker();
       final XFile? imageFile =
           await picker.pickImage(source: ImageSource.gallery);
 
-      // If the user cancels the selection, exit the function.
       if (imageFile == null) return;
 
-      // Read the image bytes.
       final Uint8List imageBytes = await imageFile.readAsBytes();
 
-      // Ensure that the photos directory exists.
       final Directory photosDir = Directory(_photosDirectory!);
       if (!await photosDir.exists()) {
         await photosDir.create(recursive: true);
       }
 
-      // Generate a unique file path and save the image as a JPEG.
       final String newPath =
           '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final File savedPhoto = await File(newPath).writeAsBytes(imageBytes);
 
-      // Update the UI with the new photo and persist the photo list.
       setState(() {
         _photos.add(savedPhoto);
       });
       await _savePhotos();
 
-      // Notify the user that the photo was uploaded and saved successfully.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Photo uploaded and saved successfully!')),
       );
     } catch (e) {
-      // Log the error and notify the user if something goes wrong.
       debugPrint('Error uploading photo: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error uploading photo: $e')),
@@ -563,24 +607,23 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  /// Import photos from device gallery into the photos directory
+  /// Import photos from the device gallery into the photos directory.
   Future<void> _importPhotos() async {
     try {
       final pickedFiles = await _picker.pickMultiImage();
       if (pickedFiles == null || pickedFiles.isEmpty) return;
 
-      final photosDir = Directory(_photosDirectory!);
+      final Directory photosDir = Directory(_photosDirectory!);
       if (!await photosDir.exists()) {
         await photosDir.create(recursive: true);
       }
 
       for (var pickedFile in pickedFiles) {
-        final oldFile = File(pickedFile.path);
+        final File oldFile = File(pickedFile.path);
         if (await oldFile.exists()) {
-          final newPath =
+          final String newPath =
               '${photosDir.path}/imported_${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
-          final savedPhoto = await oldFile.copy(newPath);
-
+          final File savedPhoto = await oldFile.copy(newPath);
           setState(() => _photos.add(savedPhoto));
         }
       }
@@ -598,25 +641,21 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   /// Navigation logic for the bottom navigation bar.
-  /// The bar has three destinations:
   /// - Index 0: Home screen.
   /// - Index 1: Take Photo action (does not change the current screen).
   /// - Index 2: Files screen.
   void _onNavIndexChanged(int newIndex) {
     if (newIndex == 1) {
-      // When the middle icon is tapped, trigger the take photo action.
       _choosePhotoOption();
       return;
     }
     setState(() {
-      // Map bottom nav index to screen index: 0 -> Home, 2 -> Files.
       _selectedScreenIndex = newIndex == 0 ? 0 : 1;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Each nav item shows a different screen.
     final screens = [
       HomeScreen(
         photos: _photos,
@@ -632,13 +671,9 @@ class _MainScreenState extends State<MainScreen> {
       FilesScreen(pdfs: _pdfs),
     ];
 
-    // Determine the selected index for the NavigationBar.
-    // If _selectedScreenIndex is 0, then nav index 0 (Home) is selected;
-    // if _selectedScreenIndex is 1, then nav index 2 (Files) is selected.
     int navBarSelectedIndex = _selectedScreenIndex == 0 ? 0 : 2;
 
     return Scaffold(
-      // Subtle background gradient
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -654,8 +689,6 @@ class _MainScreenState extends State<MainScreen> {
         ),
         child: screens[_selectedScreenIndex],
       ),
-
-      // Material 3 NavigationBar with three destinations.
       bottomNavigationBar: NavigationBar(
         selectedIndex: navBarSelectedIndex,
         onDestinationSelected: _onNavIndexChanged,

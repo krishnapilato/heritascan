@@ -1,17 +1,56 @@
-import 'package:emailjs/emailjs.dart' as EmailJS; // <-- EmailJS import
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:emailjs/emailjs.dart' as EmailJS;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _isDarkTheme = false;
+
+  void _toggleTheme(bool isDark) {
+    setState(() {
+      _isDarkTheme = isDark;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Settings App',
+      theme: ThemeData.light(useMaterial3: true),
+      darkTheme: ThemeData.dark(useMaterial3: true),
+      themeMode: _isDarkTheme ? ThemeMode.dark : ThemeMode.light,
+      home: SettingsScreen(
+        isDarkTheme: _isDarkTheme,
+        onThemeChanged: _toggleTheme,
+      ),
+    );
+  }
+}
 
 class SettingsScreen extends StatefulWidget {
   final bool isDarkTheme;
   final ValueChanged<bool> onThemeChanged;
 
   const SettingsScreen({
-    Key? key,
+    super.key,
     required this.isDarkTheme,
     required this.onThemeChanged,
-  }) : super(key: key);
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -21,7 +60,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _photosDirectory;
   String? _pdfsDirectory;
 
-  // Use the same version as in your main file (or update accordingly)
+  // App version (update accordingly)
   String get kAppVersion => "0.1.5";
 
   @override
@@ -39,7 +78,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _pickDirectory(String type) async {
-    final String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+    final String? selectedDirectory =
+        await FilePicker.platform.getDirectoryPath();
     if (selectedDirectory == null) return;
 
     final prefs = await SharedPreferences.getInstance();
@@ -52,8 +92,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Opens a bottom sheet that uses Material 3 styling (with extra padding,
-  /// a dropdown for selecting feedback type, and a large text field)
+  Future<void> _resetDirectory(String type) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (type == 'photos') {
+      setState(() {
+        _photosDirectory = null;
+      });
+      await prefs.remove('photosDirectory');
+    } else if (type == 'pdfs') {
+      setState(() {
+        _pdfsDirectory = null;
+      });
+      await prefs.remove('pdfsDirectory');
+    }
+  }
+
+  /// Opens a Material 3–styled bottom sheet feedback form with
+  /// an option to attach a file and shows a loading indicator while sending.
   void _openFeedbackForm() {
     showModalBottomSheet(
       context: context,
@@ -62,117 +117,205 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (BuildContext context) {
-        final theme = Theme.of(context);
+        // Local state variables for the bottom sheet.
         String? feedbackType;
+        String? attachmentFileName;
+        String? attachmentBase64;
+        bool isSending = false;
         final TextEditingController feedbackController = TextEditingController();
 
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 24,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Share Your Thoughts',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            Future<void> _pickAttachment() async {
+              final result = await FilePicker.platform.pickFiles();
+              if (result != null && result.files.single.path != null) {
+                final filePath = result.files.single.path!;
+                final fileBytes = await File(filePath).readAsBytes();
+                setModalState(() {
+                  attachmentFileName = result.files.single.name;
+                  attachmentBase64 = base64Encode(fileBytes);
+                });
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               ),
-              const SizedBox(height: 16),
-              // "Select Type" Dropdown
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: 'Type of feedback',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'Bug Report', child: Text('Bug Report')),
-                  DropdownMenuItem(value: 'Suggestion', child: Text('Suggestion')),
-                  DropdownMenuItem(value: 'Other', child: Text('Other')),
-                ],
-                onChanged: (value) {
-                  feedbackType = value;
-                },
-              ),
-              const SizedBox(height: 16),
-              // Multi-line text field for feedback
-              TextField(
-                controller: feedbackController,
-                autofocus: true,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: 'Your feedback',
-                  hintText: 'Ideas, suggestions, or issues...',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Action buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
+                  Text(
+                    'Share Your Thoughts',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(width: 12),
-                  FilledButton(
-                    onPressed: () async {
-                      final feedback = feedbackController.text.trim();
-                      if (feedback.isEmpty || feedbackType == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please select type & enter feedback.')),
-                        );
-                        return;
-                      }
-
-                      final success = await _sendFeedbackEmail(feedbackType!, feedback);
-                      feedbackController.clear();
-                      Navigator.pop(context);
-
-                      if (success) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Thanks for your feedback!')),
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Could not send feedback.')),
-                        );
-                      }
+                  const SizedBox(height: 16),
+                  // Dropdown for selecting feedback type.
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: 'Type of feedback',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                          value: 'Bug Report', child: Text('Bug Report')),
+                      DropdownMenuItem(
+                          value: 'Suggestion', child: Text('Suggestion')),
+                      DropdownMenuItem(value: 'Other', child: Text('Other')),
+                    ],
+                    onChanged: (value) {
+                      setModalState(() {
+                        feedbackType = value;
+                      });
                     },
-                    child: Row(
-                      children: const [
-                        Text('Send'),
-                        SizedBox(width: 4),
-                        Icon(Icons.send_rounded),
-                      ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Multi-line text field for feedback message.
+                  TextField(
+                    controller: feedbackController,
+                    autofocus: true,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Your feedback',
+                      hintText: 'Ideas, suggestions, or issues...',
+                      border: OutlineInputBorder(),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  // Attachment section.
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _pickAttachment,
+                        icon: const Icon(Icons.attach_file),
+                        label: const Text('Attach File'),
+                      ),
+                      const SizedBox(width: 8),
+                      if (attachmentFileName != null)
+                        Expanded(
+                          child: Text(
+                            attachmentFileName!,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      if (attachmentFileName != null)
+                        IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            setModalState(() {
+                              attachmentFileName = null;
+                              attachmentBase64 = null;
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Action buttons.
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: isSending ? null : () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton(
+                        onPressed: isSending
+                            ? null
+                            : () async {
+                                final feedback =
+                                    feedbackController.text.trim();
+                                if (feedback.isEmpty || feedbackType == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Please select type & enter feedback.'),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                setModalState(() {
+                                  isSending = true;
+                                });
+                                final success = await _sendFeedbackEmail(
+                                  feedbackType!,
+                                  feedback,
+                                  attachmentBase64: attachmentBase64,
+                                  attachmentFileName: attachmentFileName,
+                                );
+                                setModalState(() {
+                                  isSending = false;
+                                });
+                                feedbackController.clear();
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(success
+                                        ? 'Thanks for your feedback!'
+                                        : 'Could not send feedback.'),
+                                  ),
+                                );
+                              },
+                        child: isSending
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Text('Send'),
+                                  SizedBox(width: 4),
+                                  Icon(Icons.send_rounded),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  /// Sends the email with EmailJS. Be sure to configure your EmailJS service properly.
-  /// Replace the service ID, template ID, and public key with your actual values.
-  Future<bool> _sendFeedbackEmail(String type, String feedback) async {
+  /// Sends feedback via EmailJS. Optionally attaches a file if provided.
+  Future<bool> _sendFeedbackEmail(
+    String type,
+    String feedback, {
+    String? attachmentBase64,
+    String? attachmentFileName,
+  }) async {
     try {
+      final Map<String, dynamic> templateParams = {
+        'feedback_type': type,
+        'feedback_message': feedback,
+        'to_email': 'krishnak.pilato@gmail.com',
+      };
+
+      if (attachmentBase64 != null && attachmentFileName != null) {
+        templateParams['feedback_attachment'] = attachmentBase64;
+        templateParams['feedback_attachment_name'] = attachmentFileName;
+      }
+
       await EmailJS.send(
         'service_xg0zung',
         'template_6yjljvi',
         {
           'user_id': 'Snh_1YI8Oz07iuS5R',
-          'template_params': {
-            'feedback_type': type,
-            'feedback_message': feedback,
-            'to_email': 'krishnak.pilato@gmail.com',
-          },
+          'template_params': templateParams,
         },
       );
       return true;
@@ -192,7 +335,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Text(
           'Settings',
           style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-        )
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -226,9 +369,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _photosDirectory ?? 'Not set',
               style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
-            trailing: FilledButton(
-              onPressed: () => _pickDirectory('photos'),
-              child: const Text('Change'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton(
+                  onPressed: () => _pickDirectory('photos'),
+                  child: const Text('Change'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () => _resetDirectory('photos'),
+                ),
+              ],
             ),
           ),
           ListTile(
@@ -238,9 +390,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _pdfsDirectory ?? 'Not set',
               style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
-            trailing: FilledButton(
-              onPressed: () => _pickDirectory('pdfs'),
-              child: const Text('Change'),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton(
+                  onPressed: () => _pickDirectory('pdfs'),
+                  child: const Text('Change'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () => _resetDirectory('pdfs'),
+                ),
+              ],
             ),
           ),
           const Divider(height: 32),
@@ -280,6 +441,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: const Text("View libraries used in this app."),
             onTap: () {
               showLicensePage(context: context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.star_rate_rounded),
+            title: const Text('Rate the App'),
+            onTap: () async {
+              const url = 'https://github.com/krishnapilato/heritascan';
+              if (await canLaunch(url)) {
+                // ignore: deprecated_member_use
+                await launch(url);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Could not open URL.')),
+                );
+              }
             },
           ),
           ListTile(
