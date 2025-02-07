@@ -56,6 +56,25 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
+/// A helper widget to display section headers in the settings screen.
+class SectionHeader extends StatelessWidget {
+  final String title;
+  const SectionHeader({Key? key, required this.title}) : super(key: key);
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 24, bottom: 8),
+      child: Text(
+        title,
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
 class _SettingsScreenState extends State<SettingsScreen> {
   String? _photosDirectory;
   String? _pdfsDirectory;
@@ -107,8 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Opens a Material 3–styled bottom sheet feedback form with
-  /// an option to attach a file and shows a loading indicator while sending.
+  /// Opens a feedback form as a bottom sheet.
   void _openFeedbackForm() {
     showModalBottomSheet(
       context: context,
@@ -117,12 +135,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (BuildContext context) {
-        // Local state variables for the bottom sheet.
+        // Local state for the bottom sheet.
         String? feedbackType;
         String? attachmentFileName;
         String? attachmentBase64;
         bool isSending = false;
-        final TextEditingController feedbackController = TextEditingController();
+        final TextEditingController feedbackController =
+            TextEditingController();
 
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
@@ -156,7 +175,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  // Dropdown for selecting feedback type.
                   DropdownButtonFormField<String>(
                     decoration: const InputDecoration(
                       labelText: 'Type of feedback',
@@ -176,7 +194,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  // Multi-line text field for feedback message.
                   TextField(
                     controller: feedbackController,
                     autofocus: true,
@@ -188,7 +205,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Attachment section.
                   Row(
                     children: [
                       ElevatedButton.icon(
@@ -217,12 +233,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // Action buttons.
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton(
-                        onPressed: isSending ? null : () => Navigator.pop(context),
+                        onPressed:
+                            isSending ? null : () => Navigator.pop(context),
                         child: const Text('Cancel'),
                       ),
                       const SizedBox(width: 12),
@@ -230,13 +246,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onPressed: isSending
                             ? null
                             : () async {
-                                final feedback =
-                                    feedbackController.text.trim();
+                                final feedback = feedbackController.text.trim();
                                 if (feedback.isEmpty || feedbackType == null) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
-                                          'Please select type & enter feedback.'),
+                                          'Please select a type and enter your feedback.'),
                                     ),
                                   );
                                   return;
@@ -267,9 +282,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -334,18 +348,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         title: Text(
           'Settings',
-          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          style:
+              theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // Appearance Section
-          Text(
-            'Appearance',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
+          const SectionHeader(title: 'Appearance'),
           SwitchListTile(
             title: const Text('Dark Theme'),
             secondary: const Icon(Icons.dark_mode_rounded),
@@ -357,11 +368,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 32),
           // Directories Section
-          Text(
-            'Directories',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
+          const SectionHeader(title: 'Directories'),
           ListTile(
             leading: const Icon(Icons.photo_library_rounded),
             title: const Text('Photos Directory'),
@@ -406,11 +413,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 32),
           // Feedback Section
-          Text(
-            'Feedback',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
+          const SectionHeader(title: 'Feedback'),
           ListTile(
             leading: const Icon(Icons.feedback_rounded),
             title: const Text('Send Feedback / Ideas'),
@@ -422,11 +425,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 32),
           // About Section
-          Text(
-            'About',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
+          const SectionHeader(title: 'About'),
           ListTile(
             leading: const Icon(Icons.info_rounded),
             title: const Text('App Version'),
@@ -444,8 +443,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.star_rate_rounded),
-            title: const Text('Rate the App'),
+            leading: const Icon(Icons.source_rounded),
+            title: const Text('Source Code'),
             onTap: () async {
               const url = 'https://github.com/krishnapilato/heritascan';
               if (await canLaunch(url)) {

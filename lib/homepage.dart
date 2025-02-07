@@ -2,11 +2,12 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
-import 'package:intl/intl.dart';
-import 'package:lottie/lottie.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image/image.dart' as img;
 
 import 'edit_photo.dart'; // For your FullScreenImage screen
 
@@ -33,7 +34,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Use file paths for selection to handle sorting changes.
+  // Selection variables.
   Set<String> _selectedPaths = {};
   bool _selectionMode = false;
 
@@ -43,29 +44,48 @@ class _HomeScreenState extends State<HomeScreen> {
   // Sorting option: 'date_desc', 'date_asc', 'name_asc', 'name_desc'
   String _sortOption = 'date_desc';
 
-  // Returns a sorted copy of the photos list based on _sortOption.
+  // Search mode.
+  bool _isSearching = false;
+  String _searchQuery = "";
+  final TextEditingController _searchController = TextEditingController();
+
+  // Returns a sorted (and filtered) copy of the photos list.
   List<File> get sortedPhotos {
     List<File> list = List.from(widget.photos);
+
+    // Apply search filtering if active.
+    if (_isSearching && _searchQuery.isNotEmpty) {
+      list = list.where((file) {
+        final name = file.path.split(Platform.pathSeparator).last.toLowerCase();
+        return name.contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+
+    // Sorting.
     switch (_sortOption) {
       case 'date_desc':
-        list.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+        list.sort(
+            (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
         break;
       case 'date_asc':
-        list.sort((a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
+        list.sort(
+            (a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
         break;
       case 'name_asc':
         list.sort((a, b) => a.path
             .split(Platform.pathSeparator)
             .last
             .toLowerCase()
-            .compareTo(b.path.split(Platform.pathSeparator).last.toLowerCase()));
+            .compareTo(
+                b.path.split(Platform.pathSeparator).last.toLowerCase()));
         break;
       case 'name_desc':
         list.sort((a, b) => b.path
             .split(Platform.pathSeparator)
             .last
             .toLowerCase()
-            .compareTo(a.path.split(Platform.pathSeparator).last.toLowerCase()));
+            .compareTo(
+                a.path.split(Platform.pathSeparator).last.toLowerCase()));
         break;
       default:
         break;
@@ -80,65 +100,108 @@ class _HomeScreenState extends State<HomeScreen> {
     final isEmpty = widget.photos.isEmpty;
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          // SliverAppBar with dynamic actions.
-          SliverAppBar(
-            automaticallyImplyLeading: false,
-            pinned: true,
-            floating: false,
-            expandedHeight: 120,
-            elevation: 0,
-            backgroundColor: theme.colorScheme.background,
-            leading: _selectionMode
-                ? IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: _cancelSelection,
-                    tooltip: 'Cancel Selection',
-                  )
-                : null,
-            centerTitle: false,
-            title: Text(
-              _selectionMode
-                  ? 'Selected (${_selectedPaths.length})'
-                  : 'Images',
-              style: TextStyle(
-                fontSize: _selectionMode ? 18 : 28,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            actions: _selectionMode
-                ? [
-                    IconButton(
-                      icon: Icon(allSelected ? Icons.clear_all : Icons.select_all),
-                      onPressed: _selectAllOrNone,
-                      tooltip: allSelected ? 'Deselect All' : 'Select All',
+      appBar: AppBar(
+        centerTitle: false, // Title is left-aligned.
+        automaticallyImplyLeading: false,
+        backgroundColor: theme.colorScheme.background,
+        elevation: 0,
+        leading: _selectionMode
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Cancel Selection',
+                onPressed: _cancelSelection,
+              )
+            : null,
+        title: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: _isSearching
+              ? TextField(
+                  key: const ValueKey('searchField'),
+                  controller: _searchController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Search photos...',
+                    border: InputBorder.none,
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.cancel),
+                      onPressed: () {
+                        setState(() {
+                          _isSearching = false;
+                          _searchQuery = "";
+                          _searchController.clear();
+                        });
+                      },
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete),
-                      onPressed: _deleteSelectedPhotos,
-                      tooltip: 'Delete',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.share),
-                      onPressed: _shareSelectedPhotos,
-                      tooltip: 'Share',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.picture_as_pdf),
-                      onPressed: _generatePdf,
-                      tooltip: 'Generate PDF',
-                    ),
-                  ]
+                  ),
+                  style: const TextStyle(fontSize: 20),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                    });
+                  },
+                )
+              : Text(
+                  _selectionMode
+                      ? 'Selected (${_selectedPaths.length})'
+                      : 'Images',
+                  key: const ValueKey('title'),
+                  style: TextStyle(
+                    fontSize: _selectionMode ? 18 : 28,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+        ),
+        actions: _selectionMode
+            ? [
+                IconButton(
+                  icon: Icon(allSelected ? Icons.clear_all : Icons.select_all),
+                  tooltip: allSelected ? 'Deselect All' : 'Select All',
+                  onPressed: _selectAllOrNone,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  tooltip: 'Delete',
+                  onPressed: _deleteSelectedPhotos,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.share),
+                  tooltip: 'Share',
+                  onPressed: _shareSelectedPhotos,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.picture_as_pdf),
+                  tooltip: 'Generate PDF',
+                  onPressed: _generatePdf,
+                ),
+              ]
+            : _isSearching
+                ? [] // Hide actions when searching.
                 : [
                     IconButton(
                       icon: Icon(
-                        _gridColumns == 2 ? Icons.grid_view_rounded : Icons.view_comfy,
+                        _isSearching ? Icons.cancel : Icons.search,
                       ),
-                      onPressed: _toggleGalleryLayout,
-                      tooltip: 'Toggle Layout',
+                      tooltip: _isSearching ? 'Cancel Search' : 'Search',
+                      onPressed: () {
+                        setState(() {
+                          if (_isSearching) {
+                            _searchQuery = "";
+                            _searchController.clear();
+                          }
+                          _isSearching = !_isSearching;
+                        });
+                      },
                     ),
-                    // Sorting Popup Menu.
+                    IconButton(
+                      icon: Icon(
+                        _gridColumns == 2
+                            ? Icons.grid_view_rounded
+                            : Icons.view_comfy,
+                      ),
+                      tooltip: 'Toggle Layout',
+                      onPressed: _toggleGalleryLayout,
+                    ),
+                    // Sorting popup.
                     PopupMenuButton<String>(
                       icon: const Icon(Icons.sort),
                       tooltip: 'Sort Photos',
@@ -168,15 +231,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.settings_rounded),
-                      onPressed: () => Navigator.pushNamed(context, '/settings'),
                       tooltip: 'Settings',
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/settings'),
                     ),
                   ],
-            flexibleSpace: const FlexibleSpaceBar(
-              titlePadding: EdgeInsets.zero,
-            ),
-          ),
-          // Main body.
+      ),
+      body: CustomScrollView(
+        slivers: [
           if (isEmpty)
             SliverFillRemaining(
               child: Center(
@@ -200,8 +262,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             )
           else
+            // Add a top margin for the grid view.
             SliverPadding(
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.only(
+                  top: 55, left: 12, right: 12, bottom: 12),
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: _gridColumns,
@@ -227,14 +291,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
                           border: isSelected
-                              ? Border.all(color: theme.colorScheme.primary, width: 3)
+                              ? Border.all(
+                                  color: theme.colorScheme.primary, width: 3)
                               : null,
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
                                     blurRadius: 8,
                                     spreadRadius: 2,
-                                    color: theme.colorScheme.primary.withOpacity(0.4),
+                                    color: theme.colorScheme.primary
+                                        .withOpacity(0.4),
                                   )
                                 ]
                               : [
@@ -251,12 +317,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              // Display photo.
                               Image.file(
                                 photo,
                                 fit: BoxFit.cover,
-                                key: ValueKey(photo.path + (isSelected ? 'selected' : '')),
-                                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                                key: ValueKey(photo.path +
+                                    (isSelected ? 'selected' : '')),
+                                frameBuilder: (context, child, frame,
+                                    wasSynchronouslyLoaded) {
                                   if (wasSynchronouslyLoaded) return child;
                                   return AnimatedOpacity(
                                     opacity: frame == null ? 0 : 1,
@@ -265,10 +332,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                   );
                                 },
                               ),
-                              // Selection overlay.
                               if (isSelected)
                                 Container(
-                                  color: theme.colorScheme.primary.withOpacity(0.4),
+                                  color: theme.colorScheme.primary
+                                      .withOpacity(0.4),
                                   child: const Center(
                                     child: Icon(
                                       Icons.check_circle,
@@ -299,7 +366,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // Toggle selection status of a photo.
+  // Toggle selection status for a photo.
   void _toggleSelection(File photo) {
     setState(() {
       if (_selectedPaths.contains(photo.path)) {
@@ -319,6 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // Select all or deselect all photos.
   void _selectAllOrNone() {
     final allSelected = _selectedPaths.length == sortedPhotos.length;
     setState(() {
@@ -332,16 +400,16 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // Delete selected photos from disk and update the list.
+  // Delete selected photos.
   Future<void> _deleteSelectedPhotos() async {
     if (_selectedPaths.isEmpty) return;
-
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Delete Photos'),
-          content: const Text('Are you sure you want to delete the selected photos?'),
+          content: const Text(
+              'Are you sure you want to delete the selected photos?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -358,7 +426,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (confirm != true) return;
 
-    final photosToDelete = widget.photos.where((photo) => _selectedPaths.contains(photo.path)).toList();
+    final photosToDelete = widget.photos
+        .where((photo) => _selectedPaths.contains(photo.path))
+        .toList();
 
     setState(() {
       widget.photos.removeWhere((photo) => _selectedPaths.contains(photo.path));
@@ -405,7 +475,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _generatePdf() async {
     if (_selectedPaths.isEmpty) return;
 
-    // Show a loading animation.
+    // Show a loading indicator.
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -413,10 +483,10 @@ class _HomeScreenState extends State<HomeScreen> {
         color: Colors.black54,
         child: Center(
           child: Lottie.network(
-            'https://assets10.lottiefiles.com/packages/lf20_usmfx6bp.json',
-            width: 150,
-            height: 150,
-            fit: BoxFit.contain,
+            'https://assets10.lottiefiles.com/packages/lf20_jcikwtux.json',
+            width: 650,
+            height: 450,
+            fit: BoxFit.fill,
           ),
         ),
       ),
@@ -441,13 +511,15 @@ class _HomeScreenState extends State<HomeScreen> {
         SnackBar(content: Text('Error generating PDF: $e')),
       );
     } finally {
-      Navigator.pop(context); // Dismiss loading dialog.
+      Navigator.pop(context); // Dismiss loading indicator.
     }
   }
 
   Future<void> _generatePdfInternal() async {
     final pdf = pw.Document();
-    final selectedFiles = sortedPhotos.where((photo) => _selectedPaths.contains(photo.path)).toList();
+    final selectedFiles = sortedPhotos
+        .where((photo) => _selectedPaths.contains(photo.path))
+        .toList();
 
     for (var file in selectedFiles) {
       final imageBytes = await _resizeImage(file.path);
@@ -480,7 +552,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (decoded == null) {
       throw Exception('Failed to decode image.');
     }
-    final List<int> compressed = img.encodeJpg(decoded, quality: quality ?? 100);
+    final List<int> compressed =
+        img.encodeJpg(decoded, quality: quality ?? 100);
     return Uint8List.fromList(compressed);
   }
 
@@ -490,9 +563,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final updatedImage = await Navigator.push<File?>(
         context,
         MaterialPageRoute(
-          builder: (context) => FullScreenImage(
-            imageFile: photo,
-          ),
+          builder: (context) => FullScreenImage(imageFile: photo),
         ),
       );
 

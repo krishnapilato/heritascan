@@ -694,11 +694,11 @@ class _MainScreenState extends State<MainScreen> {
         onDestinationSelected: _onNavIndexChanged,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.home_rounded),
-            label: 'Home',
+            icon: Icon(Icons.collections_bookmark_rounded),
+            label: 'Images',
           ),
           NavigationDestination(
-            icon: Icon(Icons.photo_camera),
+            icon: Icon(Icons.document_scanner_rounded),
             label: 'Photo',
           ),
           NavigationDestination(

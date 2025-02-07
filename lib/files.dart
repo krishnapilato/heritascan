@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:convert'; // For JSON encode/decode
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -48,9 +49,11 @@ class FilesScreen extends StatefulWidget {
 }
 
 class _FilesScreenState extends State<FilesScreen> {
-  // Selection now stores file paths (to remain consistent across filters/sorts)
+  // ---------------- SELECTION MODE VARIABLES ----------------
   Set<String> _selectedPaths = {};
   bool _selectionMode = false;
+
+  // ---------------- SEARCH & FILTER VARIABLES ----------------
   bool _showSearch = false;
   bool _showFavoritesOnly = false;
   String _searchQuery = '';
@@ -59,20 +62,24 @@ class _FilesScreenState extends State<FilesScreen> {
   // Sorting option: 'name', 'date', 'size'
   String _sortOption = 'name';
 
-  // New: Date filter variables.
+  // Date filter variables.
   DateTime? _startDate;
   DateTime? _endDate;
 
-  // Set to store favorite PDF file paths.
+  // ---------------- FAVORITES, PINNED & NOTES ----------------
   Set<String> _favoritePdfPaths = {};
+  Set<String> _pinnedPdfPaths = {};
+  Map<String, String> _pdfNotes = {};
 
   @override
   void initState() {
     super.initState();
     _loadFavorites();
+    _loadPinned();
+    _loadNotes();
   }
 
-  // Load favorites from SharedPreferences.
+  // ---------------- FAVORITES ----------------
   Future<void> _loadFavorites() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -80,13 +87,85 @@ class _FilesScreenState extends State<FilesScreen> {
     });
   }
 
-  // Update favorites in SharedPreferences.
   Future<void> _updateFavorites() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('favoritePdfs', _favoritePdfPaths.toList());
   }
 
-  // Filter PDFs based on search query and date filter.
+  // ---------------- PINNED PDFs ----------------
+  Future<void> _loadPinned() async {
+    final prefs = await SharedPreferences.getInstance();
+    final pinnedList = prefs.getStringList('pinnedPdfs') ?? [];
+    setState(() {
+      _pinnedPdfPaths = pinnedList.toSet();
+    });
+  }
+
+  Future<void> _updatePinned() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('pinnedPdfs', _pinnedPdfPaths.toList());
+  }
+
+  void _togglePin(File file) {
+    setState(() {
+      if (_pinnedPdfPaths.contains(file.path)) {
+        _pinnedPdfPaths.remove(file.path);
+      } else {
+        _pinnedPdfPaths.add(file.path);
+      }
+    });
+    _updatePinned();
+  }
+
+  // ---------------- NOTES ----------------
+  Future<void> _loadNotes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final notesJson = prefs.getString('pdfNotes') ?? '{}';
+    final decoded = jsonDecode(notesJson) as Map<String, dynamic>;
+    _pdfNotes = decoded.map((k, v) => MapEntry(k, v as String));
+  }
+
+  Future<void> _saveNotes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final notesJson = jsonEncode(_pdfNotes);
+    await prefs.setString('pdfNotes', notesJson);
+  }
+
+  Future<void> _showNoteDialog(File file) async {
+    final currentNote = _pdfNotes[file.path] ?? '';
+    final controller = TextEditingController(text: currentNote);
+    final newNote = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add/Edit Note'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'Write your note here...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (newNote != null) {
+      setState(() {
+        _pdfNotes[file.path] = newNote.trim();
+      });
+      await _saveNotes();
+    }
+  }
+
+  // ---------------- FILTERS & SORTS ----------------
   List<File> get _filteredPdfs {
     List<File> list = widget.pdfs;
     if (_searchQuery.isNotEmpty) {
@@ -99,39 +178,44 @@ class _FilesScreenState extends State<FilesScreen> {
     if (_startDate != null && _endDate != null) {
       list = list.where((file) {
         DateTime mod = file.statSync().modified;
-        // Add one day to _endDate to include files modified on that day.
-        return mod.isAfter(_startDate!) && mod.isBefore(_endDate!.add(const Duration(days: 1)));
+        // Include files modified on _endDate as well.
+        return mod.isAfter(_startDate!) &&
+            mod.isBefore(_endDate!.add(const Duration(days: 1)));
       }).toList();
     }
     return list;
   }
 
-  // Final list: apply favorites filter and sorting.
   List<File> get _finalPdfs {
     List<File> list = _filteredPdfs;
     if (_showFavoritesOnly) {
-      list = list.where((file) => _favoritePdfPaths.contains(file.path)).toList();
+      list =
+          list.where((file) => _favoritePdfPaths.contains(file.path)).toList();
     }
-    list.sort((a, b) {
-      switch (_sortOption) {
-        case 'name':
-          return a.path
-              .split(Platform.pathSeparator)
-              .last
-              .toLowerCase()
-              .compareTo(b.path.split(Platform.pathSeparator).last.toLowerCase());
-        case 'date':
-          return b.statSync().modified.compareTo(a.statSync().modified);
-        case 'size':
-          return b.statSync().size.compareTo(a.statSync().size);
-        default:
-          return 0;
-      }
-    });
-    return list;
+    final pinned = list.where((f) => _pinnedPdfPaths.contains(f.path)).toList();
+    final unpinned =
+        list.where((f) => !_pinnedPdfPaths.contains(f.path)).toList();
+    pinned.sort((a, b) => _compareFiles(a, b));
+    unpinned.sort((a, b) => _compareFiles(a, b));
+    return [...pinned, ...unpinned];
   }
 
-  // Toggle selection for a given file.
+  int _compareFiles(File a, File b) {
+    switch (_sortOption) {
+      case 'name':
+        final aName = a.path.split(Platform.pathSeparator).last.toLowerCase();
+        final bName = b.path.split(Platform.pathSeparator).last.toLowerCase();
+        return aName.compareTo(bName);
+      case 'date':
+        return b.statSync().modified.compareTo(a.statSync().modified);
+      case 'size':
+        return b.statSync().size.compareTo(a.statSync().size);
+      default:
+        return 0;
+    }
+  }
+
+  // ---------------- SELECTION & ACTIONS ----------------
   void _toggleSelection(String filePath) {
     setState(() {
       if (_selectedPaths.contains(filePath)) {
@@ -143,7 +227,6 @@ class _FilesScreenState extends State<FilesScreen> {
     });
   }
 
-  // Toggle "Select All" or "Deselect All".
   void _toggleSelectAllOrNone() {
     final allSelected = _selectedPaths.length == _finalPdfs.length;
     setState(() {
@@ -155,7 +238,6 @@ class _FilesScreenState extends State<FilesScreen> {
     });
   }
 
-  // Toggle favorite status for a file.
   void _toggleFavorite(File file) {
     setState(() {
       if (_favoritePdfPaths.contains(file.path)) {
@@ -167,7 +249,6 @@ class _FilesScreenState extends State<FilesScreen> {
     _updateFavorites();
   }
 
-  // Show a loading dialog with a Lottie animation.
   void _showLoadingDialog() {
     showDialog(
       context: context,
@@ -177,16 +258,15 @@ class _FilesScreenState extends State<FilesScreen> {
         child: Center(
           child: Lottie.network(
             'https://assets10.lottiefiles.com/packages/lf20_usmfx6bp.json',
-            width: 150,
-            height: 150,
-            fit: BoxFit.contain,
+            width: 650,
+            height: 450,
+            fit: BoxFit.fill,
           ),
         ),
       ),
     );
   }
 
-  // Open the PDF file externally. If not supported, fall back to in-app PDF viewer.
   Future<void> _openPdf(File file) async {
     _showLoadingDialog();
     try {
@@ -200,7 +280,6 @@ class _FilesScreenState extends State<FilesScreen> {
       final result = await OpenFilex.open(file.path);
       Navigator.pop(context);
       if (result.type != ResultType.done) {
-        // Fallback to in-app viewer.
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -222,7 +301,6 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  // Tap event for a PDF item.
   void _onPdfTap(File file) {
     if (_selectionMode) {
       _toggleSelection(file.path);
@@ -231,18 +309,17 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  // Long press triggers selection mode.
   void _onPdfLongPress(File file) {
     _toggleSelection(file.path);
   }
 
-  // Show confirmation dialog before deleting selected PDFs.
   Future<void> _confirmDeleteSelectedPdfs() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete PDFs'),
-        content: const Text('Are you sure you want to delete the selected PDFs?'),
+        content:
+            const Text('Are you sure you want to delete the selected PDFs?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -260,7 +337,6 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  // Delete all selected PDFs from disk and update shared preferences.
   Future<void> _deleteSelectedPdfs() async {
     if (_selectedPaths.isEmpty) return;
     final filesToDelete =
@@ -287,7 +363,6 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  // Share selected PDFs.
   Future<void> _shareSelectedPdfs() async {
     if (_selectedPaths.isEmpty) return;
     final filesToShare = _finalPdfs
@@ -307,7 +382,6 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  // Cancel selection mode.
   void _cancelSelection() {
     setState(() {
       _selectedPaths.clear();
@@ -315,10 +389,8 @@ class _FilesScreenState extends State<FilesScreen> {
     });
   }
 
-  // Rename a PDF file on disk and update the list and shared preferences.
   Future<void> _renamePdf(File oldFile, String newName) async {
     if (newName.trim().isEmpty) return;
-    // Ensure the new name ends with ".pdf".
     if (!newName.toLowerCase().endsWith('.pdf')) {
       newName = '${newName.trim()}.pdf';
     }
@@ -332,11 +404,20 @@ class _FilesScreenState extends State<FilesScreen> {
         if (originalIndex != -1) {
           widget.pdfs[originalIndex] = newFile;
         }
-        // Update favorite status if needed.
         if (_favoritePdfPaths.contains(oldFile.path)) {
           _favoritePdfPaths.remove(oldFile.path);
           _favoritePdfPaths.add(newFile.path);
           _updateFavorites();
+        }
+        if (_pinnedPdfPaths.contains(oldFile.path)) {
+          _pinnedPdfPaths.remove(oldFile.path);
+          _pinnedPdfPaths.add(newFile.path);
+          _updatePinned();
+        }
+        if (_pdfNotes.containsKey(oldFile.path)) {
+          final oldNote = _pdfNotes.remove(oldFile.path)!;
+          _pdfNotes[newFile.path] = oldNote;
+          _saveNotes();
         }
       });
       await _updateSharedPrefs();
@@ -350,7 +431,6 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  // Show a dialog to rename a PDF.
   Future<void> _showRenameDialog(File file) async {
     final oldName = file.path.split(Platform.pathSeparator).last;
     final controller =
@@ -384,139 +464,143 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  // Show details about a PDF file in a bottom sheet.
   void _showFileDetails(File file) {
     final fileName = file.path.split(Platform.pathSeparator).last;
     final fileStat = file.statSync();
     final fileSize = _formatFileSize(fileStat.size);
     final modifiedDate =
         DateFormat('dd-MM-yyyy HH:mm a').format(fileStat.modified);
+    final noteText = _pdfNotes[file.path] ?? '';
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (context) {
-        return Builder(
-          builder: (context) {
-            final theme = Theme.of(context);
-            final isDark = theme.brightness == Brightness.dark;
-            final Color containerColor =
-                isDark ? theme.scaffoldBackgroundColor : Colors.white;
-            final Color iconColor =
-                isDark ? theme.iconTheme.color! : Colors.black54;
-            final Color textColor = isDark ? Colors.white : Colors.black;
-            return Container(
-              color: Colors.transparent,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0, vertical: 8.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: containerColor,
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(16)),
-                  ),
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        final Color containerColor =
+            isDark ? theme.scaffoldBackgroundColor : Colors.white;
+        final Color iconColor =
+            isDark ? theme.iconTheme.color! : Colors.black54;
+        final Color textColor = isDark ? Colors.white : Colors.black;
+        return Container(
+          color: Colors.transparent,
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: containerColor,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Drag indicator and close icon.
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Header with drag indicator and close icon aligned at top right.
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.grey[600] : Colors.grey[400],
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.close, color: iconColor),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ListTile(
-                        leading: Icon(Icons.description, color: iconColor),
-                        title: Text(
-                          'File Name',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
-                          ),
-                        ),
-                        subtitle: Text(fileName, style: TextStyle(color: textColor)),
-                      ),
-                      ListTile(
-                        leading: Icon(Icons.storage, color: iconColor),
-                        title: Text(
-                          'File Size',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
-                          ),
-                        ),
-                        subtitle: Text(fileSize, style: TextStyle(color: textColor)),
-                      ),
-                      ListTile(
-                        leading: Icon(Icons.access_time, color: iconColor),
-                        title: Text(
-                          'Modified',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
-                          ),
-                        ),
-                        subtitle: Text(modifiedDate, style: TextStyle(color: textColor)),
-                      ),
-                      ListTile(
-                        leading: Icon(Icons.link, color: iconColor),
-                        title: Text(
-                          'Full Path',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
-                          ),
-                        ),
-                        subtitle: Text(
-                          file.path,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: textColor),
-                        ),
-                        trailing: GestureDetector(
-                          onTap: () async {
-                            await Clipboard.setData(ClipboardData(text: file.path));
-                            ScaffoldMessenger.of(context)
-                                .showSnackBar(
-                              const SnackBar(content: Text('File path copied!')),
-                            );
-                          },
-                          child: Icon(Icons.copy, color: iconColor),
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.grey[600] : Colors.grey[400],
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      IconButton(
+                        icon: Icon(Icons.cancel, color: iconColor),
+                        onPressed: () => Navigator.pop(context),
+                      ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  ListTile(
+                    leading: Icon(Icons.description, color: iconColor),
+                    title: Text(
+                      'File Name',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: textColor),
+                    ),
+                    subtitle:
+                        Text(fileName, style: TextStyle(color: textColor)),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.storage, color: iconColor),
+                    title: Text(
+                      'File Size',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: textColor),
+                    ),
+                    subtitle:
+                        Text(fileSize, style: TextStyle(color: textColor)),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.access_time, color: iconColor),
+                    title: Text(
+                      'Modified',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: textColor),
+                    ),
+                    subtitle:
+                        Text(modifiedDate, style: TextStyle(color: textColor)),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.link, color: iconColor),
+                    title: Text(
+                      'Full Path',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: textColor),
+                    ),
+                    subtitle: Text(
+                      file.path,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: textColor),
+                    ),
+                    trailing: GestureDetector(
+                      onTap: () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: file.path),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('File path copied!')),
+                        );
+                      },
+                      child: Icon(Icons.copy, color: iconColor),
+                    ),
+                  ),
+                  if (noteText.isNotEmpty) ...[
+                    const Divider(),
+                    ListTile(
+                      leading: Icon(Icons.note, color: iconColor),
+                      title: Text(
+                        'Note',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, color: textColor),
+                      ),
+                      subtitle:
+                          Text(noteText, style: TextStyle(color: textColor)),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                ],
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
   }
 
-  // Update shared preferences to reflect the current PDF list.
   Future<void> _updateSharedPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final pdfPaths = widget.pdfs.map((file) => file.path).toList();
     await prefs.setStringList('pdfs', pdfPaths);
   }
 
-  // Open a file picker to upload a new PDF.
   Future<void> _uploadNewPdf() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -534,7 +618,6 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  // New: Date Filter Action using a Date Range Picker.
   Future<void> _filterByDate() async {
     final DateTime now = DateTime.now();
     final DateTime firstDate = DateTime(2000);
@@ -551,7 +634,6 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  // If a date filter is active, allow clearing it.
   void _clearDateFilter() {
     setState(() {
       _startDate = null;
@@ -569,7 +651,7 @@ class _FilesScreenState extends State<FilesScreen> {
     final isEmpty = itemCount == 0;
     final allSelected = _selectedPaths.length == itemCount && itemCount > 0;
 
-    // Build AppBar actions based on selection mode and search state.
+    // ---------------- Build AppBar Actions ----------------
     List<Widget> actions;
     if (_selectionMode) {
       actions = [
@@ -590,87 +672,81 @@ class _FilesScreenState extends State<FilesScreen> {
         ),
       ];
     } else {
-      actions = [
-        _showSearch
-            ? IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () {
-                  setState(() {
-                    _showSearch = false;
-                    _searchQuery = '';
-                    _searchController.clear();
-                  });
-                },
-                tooltip: 'Close Search',
-              )
-            : IconButton(
-                icon: const Icon(Icons.search_rounded),
+      // When not in selection mode, show a search button.
+      actions = _showSearch
+          ? [] // Hide all actions when search mode is active.
+          : [
+              IconButton(
+                icon: const Icon(Icons.search),
+                tooltip: 'Search',
                 onPressed: () {
                   setState(() {
                     _showSearch = true;
                   });
                 },
-                tooltip: 'Search',
               ),
-        // Sorting options.
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.sort),
-          tooltip: 'Sort PDFs',
-          onSelected: (value) {
-            setState(() {
-              _sortOption = value;
-            });
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(value: 'name', child: Text('Name')),
-            const PopupMenuItem(value: 'date', child: Text('Date Modified')),
-            const PopupMenuItem(value: 'size', child: Text('File Size')),
-          ],
-        ),
-        // Date filter action.
-        IconButton(
-          icon: Icon(
-            Icons.date_range,
-            color: _startDate != null ? Colors.red : null,
-          ),
-          onPressed: () async {
-            if (_startDate != null && _endDate != null) {
-              _clearDateFilter();
-            } else {
-              await _filterByDate();
-            }
-          },
-          tooltip:
-              _startDate != null ? 'Clear Date Filter' : 'Filter by Date',
-        ),
-        // Favorites filter toggle.
-        IconButton(
-          icon: Icon(
-              _showFavoritesOnly ? Icons.favorite : Icons.favorite_border),
-          tooltip: _showFavoritesOnly ? 'Show All PDFs' : 'Show Favorites Only',
-          onPressed: () {
-            setState(() {
-              _showFavoritesOnly = !_showFavoritesOnly;
-            });
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.upload_file_rounded),
-          onPressed: _uploadNewPdf,
-          tooltip: 'Upload New PDF',
-        ),
-      ];
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.sort),
+                tooltip: 'Sort PDFs',
+                onSelected: (value) {
+                  setState(() {
+                    _sortOption = value;
+                  });
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(value: 'name', child: Text('Name')),
+                  const PopupMenuItem(
+                      value: 'date', child: Text('Date Modified')),
+                  const PopupMenuItem(value: 'size', child: Text('File Size')),
+                ],
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.date_range,
+                  color: _startDate != null ? Colors.red : null,
+                ),
+                onPressed: () async {
+                  if (_startDate != null && _endDate != null) {
+                    _clearDateFilter();
+                  } else {
+                    await _filterByDate();
+                  }
+                },
+                tooltip:
+                    _startDate != null ? 'Clear Date Filter' : 'Filter by Date',
+              ),
+              IconButton(
+                icon: Icon(_showFavoritesOnly
+                    ? Icons.favorite
+                    : Icons.favorite_border),
+                tooltip: _showFavoritesOnly
+                    ? 'Show All PDFs'
+                    : 'Show Favorites Only',
+                onPressed: () {
+                  setState(() {
+                    _showFavoritesOnly = !_showFavoritesOnly;
+                  });
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.upload_file_rounded),
+                onPressed: _uploadNewPdf,
+                tooltip: 'Upload New PDF',
+              ),
+            ];
     }
 
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: () async {
-          // Simulate a refresh action by reloading favorites and files.
           await _loadFavorites();
+          await _loadPinned();
+          await _loadNotes();
           setState(() {});
         },
         child: CustomScrollView(
           slivers: [
+            // ---------------- AppBar ----------------
             SliverAppBar(
               automaticallyImplyLeading: false,
               pinned: true,
@@ -686,38 +762,45 @@ class _FilesScreenState extends State<FilesScreen> {
                       tooltip: 'Cancel Selection',
                     )
                   : null,
-              title: _selectionMode
-                  ? Text(
-                      'Selected (${_selectedPaths.length})',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 18),
-                    )
-                  : _showSearch
-                      ? TextField(
-                          controller: _searchController,
-                          autofocus: true,
-                          decoration: const InputDecoration(
-                            hintText: 'Search PDFs...',
-                            border: InputBorder.none,
-                          ),
-                          style: const TextStyle(
-                            fontSize: 20,
-                          ),
-                          onChanged: (value) {
+              title: _showSearch
+                  ? TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Search PDFs...',
+                        border: InputBorder.none,
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.cancel),
+                          onPressed: () {
                             setState(() {
-                              _searchQuery = value;
+                              _showSearch = false;
+                              _searchQuery = '';
+                              _searchController.clear();
                             });
                           },
+                        ),
+                      ),
+                      style: const TextStyle(fontSize: 20),
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                      },
+                    )
+                  : _selectionMode
+                      ? Text(
+                          'Selected (${_selectedPaths.length})',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 18),
                         )
                       : const Text(
                           'Documents',
                           style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                          ),
+                              fontSize: 28, fontWeight: FontWeight.w800),
                         ),
               actions: actions,
             ),
+            // ---------------- Content ----------------
             if (isEmpty)
               SliverFillRemaining(
                 child: Center(
@@ -746,8 +829,6 @@ class _FilesScreenState extends State<FilesScreen> {
                   (context, index) {
                     final file = _finalPdfs[index];
                     final isSelected = _selectedPaths.contains(file.path);
-                    // Wrap the card with AnimationConfiguration & SlideAnimation from flutter_staggered_animations,
-                    // and wrap the card in a Slidable for swipe actions.
                     return AnimationConfiguration.staggeredList(
                       position: index,
                       duration: const Duration(milliseconds: 300),
@@ -782,7 +863,6 @@ class _FilesScreenState extends State<FilesScreen> {
                               children: [
                                 SlidableAction(
                                   onPressed: (context) async {
-                                    // Confirm deletion for this file.
                                     final confirm = await showDialog<bool>(
                                       context: context,
                                       builder: (context) => AlertDialog(
@@ -799,7 +879,8 @@ class _FilesScreenState extends State<FilesScreen> {
                                             onPressed: () =>
                                                 Navigator.pop(context, true),
                                             child: const Text('Delete',
-                                                style: TextStyle(color: Colors.red)),
+                                                style: TextStyle(
+                                                    color: Colors.red)),
                                           ),
                                         ],
                                       ),
@@ -814,12 +895,17 @@ class _FilesScreenState extends State<FilesScreen> {
                                               (pdf) => pdf.path == file.path);
                                         });
                                         await _updateSharedPrefs();
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('PDF deleted.')),
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                              content: Text('PDF deleted.')),
                                         );
                                       } catch (e) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text('Error deleting PDF: $e')),
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                              content: Text(
+                                                  'Error deleting PDF: $e')),
                                         );
                                       }
                                     }
@@ -850,79 +936,94 @@ class _FilesScreenState extends State<FilesScreen> {
     );
   }
 
-  /// Builds a card representing a PDF file with metadata and actions.
+  /// Improved PDF Card with enhanced spacing, larger icon, and refined layout.
   Widget _buildPdfCard(File file, bool isSelected) {
     final theme = Theme.of(context);
     final fileName = file.path.split(Platform.pathSeparator).last;
     final fileStat = file.statSync();
     final fileSize = _formatFileSize(fileStat.size);
-    final modifiedDate = fileStat.modified;
-    final formattedDate = DateFormat('dd-MM-yyyy HH:mm a').format(modifiedDate);
+    final modifiedDate =
+        DateFormat('dd-MM-yyyy HH:mm a').format(fileStat.modified);
 
     final baseCardColor = theme.cardColor;
     final selectedColor = theme.colorScheme.primary.withOpacity(0.12);
+    final pinned = _pinnedPdfPaths.contains(file.path);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: isSelected ? selectedColor : baseCardColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           if (theme.brightness == Brightness.light)
             BoxShadow(
               color: isSelected
                   ? theme.colorScheme.primary.withOpacity(0.2)
                   : Colors.black12,
-              offset: const Offset(0, 2),
-              blurRadius: 6,
+              offset: const Offset(0, 4),
+              blurRadius: 8,
             ),
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        leading: const CircleAvatar(
-          backgroundColor: Colors.transparent,
-          child: Icon(Icons.picture_as_pdf, color: Colors.red),
-        ),
-        title: Text(
-          fileName,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: theme.textTheme.bodyLarge?.color,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          '$fileSize • $formattedDate',
-          style: TextStyle(
-            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
-          ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
           children: [
-            // Favorite toggle.
-            IconButton(
-              icon: Icon(
-                _favoritePdfPaths.contains(file.path)
-                    ? Icons.star
-                    : Icons.star_border,
-                color: _favoritePdfPaths.contains(file.path)
-                    ? Colors.amber
-                    : null,
-              ),
-              onPressed: () => _toggleFavorite(file),
-              tooltip: _favoritePdfPaths.contains(file.path)
-                  ? 'Unmark Favorite'
-                  : 'Mark as Favorite',
+            // PDF icon
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: Colors.transparent,
+              child: Icon(Icons.picture_as_pdf, size: 32, color: Colors.red),
             ),
-            if (isSelected)
-              const Padding(
-                padding: EdgeInsets.only(right: 12),
-                child: Icon(Icons.check_circle_rounded),
+            const SizedBox(width: 16),
+            // File details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fileName,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$fileSize • $modifiedDate',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
               ),
+            ),
+            // Trailing icons for favorite and pin
+            Column(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    _favoritePdfPaths.contains(file.path)
+                        ? Icons.star
+                        : Icons.star_border,
+                    color: _favoritePdfPaths.contains(file.path)
+                        ? Colors.amber
+                        : null,
+                  ),
+                  onPressed: () => _toggleFavorite(file),
+                  tooltip: _favoritePdfPaths.contains(file.path)
+                      ? 'Unmark Favorite'
+                      : 'Mark as Favorite',
+                ),
+                IconButton(
+                  icon: Icon(
+                    pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                    color: pinned ? theme.colorScheme.primary : null,
+                  ),
+                  onPressed: () => _togglePin(file),
+                  tooltip: pinned ? 'Unpin PDF' : 'Pin PDF',
+                ),
+              ],
+            ),
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
               onSelected: (value) {
@@ -930,6 +1031,8 @@ class _FilesScreenState extends State<FilesScreen> {
                   _showRenameDialog(file);
                 } else if (value == 'details') {
                   _showFileDetails(file);
+                } else if (value == 'note') {
+                  _showNoteDialog(file);
                 }
               },
               itemBuilder: (BuildContext context) => [
@@ -940,6 +1043,10 @@ class _FilesScreenState extends State<FilesScreen> {
                 const PopupMenuItem<String>(
                   value: 'details',
                   child: Text('Details'),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'note',
+                  child: Text('Add/Edit Note'),
                 ),
               ],
             ),
@@ -966,7 +1073,7 @@ class _FilesScreenState extends State<FilesScreen> {
   }
 }
 
-// In-app PDF viewer screen with a gradient background.
+// ---------------- In-App PDF Viewer ----------------
 class PdfViewerScreen extends StatelessWidget {
   final String path;
   const PdfViewerScreen({Key? key, required this.path}) : super(key: key);
