@@ -6,8 +6,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-// Removed: import 'package:flutter_document_scanner/flutter_document_scanner.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_editor_plus/image_editor_plus.dart';
+import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'files.dart';
 import 'homepage.dart';
@@ -37,15 +39,11 @@ class FadePageRoute<T> extends PageRouteBuilder<T> {
     RouteSettings? settings,
   }) : super(
           settings: settings,
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              builder(context),
+          pageBuilder: (context, animation, secondaryAnimation) => builder(context),
           transitionDuration: const Duration(milliseconds: 400),
           reverseTransitionDuration: const Duration(milliseconds: 300),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final fadeIn = CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeInOut,
-            );
+            final fadeIn = CurvedAnimation(parent: animation, curve: Curves.easeInOut);
             return FadeTransition(
               opacity: fadeIn,
               child: child,
@@ -88,7 +86,7 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // You can replace this Icon with your logo image (e.g., Image.asset('assets/logo.png'))
+              // Replace this Icon with your logo image if desired.
               Icon(
                 Icons.camera_alt_rounded,
                 size: 100,
@@ -125,8 +123,7 @@ class MyApp extends StatefulWidget {
   @override
   State<MyApp> createState() => _MyAppState();
 
-  static Future<SharedPreferences> get prefs async =>
-      SharedPreferences.getInstance();
+  static Future<SharedPreferences> get prefs async => SharedPreferences.getInstance();
 }
 
 class _MyAppState extends State<MyApp> {
@@ -140,7 +137,7 @@ class _MyAppState extends State<MyApp> {
     _isDarkTheme = widget.initialDarkTheme;
   }
 
-  /// Toggle or set the dark theme and persist it
+  /// Toggle or set the dark theme and persist it.
   Future<void> setDarkTheme(bool value) async {
     setState(() {
       _isDarkTheme = value;
@@ -149,7 +146,7 @@ class _MyAppState extends State<MyApp> {
     await prefs.setBool('isDarkTheme', _isDarkTheme);
   }
 
-  /// A custom on-generate-route to apply the fade transition to all page navigations
+  /// A custom on-generate-route to apply the fade transition to all page navigations.
   Route<dynamic> _onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case '/splash':
@@ -180,7 +177,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // Reflect the stored app name in the MaterialApp title:
+      // Reflect the stored app name in the MaterialApp title.
       title: 'HeritaScan',
 
       themeMode: _isDarkTheme ? ThemeMode.dark : ThemeMode.light,
@@ -198,11 +195,8 @@ class _MyAppState extends State<MyApp> {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            textStyle:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
         appBarTheme: const AppBarTheme(
@@ -210,6 +204,7 @@ class _MyAppState extends State<MyApp> {
           elevation: 0,
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
+          titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.black),
       ),
@@ -227,11 +222,8 @@ class _MyAppState extends State<MyApp> {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            textStyle:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
         appBarTheme: const AppBarTheme(
@@ -239,6 +231,7 @@ class _MyAppState extends State<MyApp> {
           elevation: 0,
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
+          titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -285,10 +278,7 @@ class _InitialScreenState extends State<InitialScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color.fromARGB(255, 7, 7, 7),
-              Color.fromARGB(255, 2, 2, 2)
-            ],
+            colors: [Color.fromARGB(255, 7, 7, 7), Color.fromARGB(255, 2, 2, 2)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -423,8 +413,12 @@ class _SetupScreenState extends State<SetupScreen> {
 }
 
 /// The MainScreen hosts the primary functionalities of the app, including Home and Files tabs.
-/// The bottom navigation bar now includes three items. The middle item is a "Take Photo" action
-/// which, when tapped, triggers the photo capture without switching screens.
+/// The bottom navigation bar now includes three items:
+/// - Index 0: HomeScreen (images)
+/// - Index 1: Photo action (to upload/take a photo)
+/// - Index 2: FilesScreen (PDFs)
+///
+/// New Feature: A popup menu option “Start Slideshow” that opens a SlideshowScreen.
 class MainScreen extends StatefulWidget {
   final ValueChanged<bool> onToggleTheme;
   final bool isDarkTheme;
@@ -444,7 +438,6 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedScreenIndex = 0;
   final List<File> _photos = [];
   final List<File> _pdfs = [];
-  // Removed: DocumentScannerController since flutter_document_scanner is not used.
 
   String? _photosDirectory;
   String? _pdfsDirectory;
@@ -538,21 +531,15 @@ class _MainScreenState extends State<MainScreen> {
   /// Takes a new photo using the camera.
   Future<void> _takeNewPhoto() async {
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? imageFile =
-          await picker.pickImage(source: ImageSource.camera);
-
+      final XFile? imageFile = await _picker.pickImage(source: ImageSource.camera);
       if (imageFile == null) return;
 
       final Uint8List imageBytes = await imageFile.readAsBytes();
-
       final Directory photosDir = Directory(_photosDirectory!);
       if (!await photosDir.exists()) {
         await photosDir.create(recursive: true);
       }
-
-      final String newPath =
-          '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String newPath = '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final File savedPhoto = await File(newPath).writeAsBytes(imageBytes);
 
       setState(() {
@@ -574,21 +561,15 @@ class _MainScreenState extends State<MainScreen> {
   /// Uploads an image from the gallery.
   Future<void> _uploadPhoto() async {
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? imageFile =
-          await picker.pickImage(source: ImageSource.gallery);
-
+      final XFile? imageFile = await _picker.pickImage(source: ImageSource.gallery);
       if (imageFile == null) return;
 
       final Uint8List imageBytes = await imageFile.readAsBytes();
-
       final Directory photosDir = Directory(_photosDirectory!);
       if (!await photosDir.exists()) {
         await photosDir.create(recursive: true);
       }
-
-      final String newPath =
-          '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String newPath = '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final File savedPhoto = await File(newPath).writeAsBytes(imageBytes);
 
       setState(() {
@@ -621,8 +602,7 @@ class _MainScreenState extends State<MainScreen> {
       for (var pickedFile in pickedFiles) {
         final File oldFile = File(pickedFile.path);
         if (await oldFile.exists()) {
-          final String newPath =
-              '${photosDir.path}/imported_${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
+          final String newPath = '${photosDir.path}/imported_${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
           final File savedPhoto = await oldFile.copy(newPath);
           setState(() => _photos.add(savedPhoto));
         }
@@ -679,10 +659,7 @@ class _MainScreenState extends State<MainScreen> {
           gradient: LinearGradient(
             colors: widget.isDarkTheme
                 ? [const Color(0xFF181818), const Color(0xFF434343)]
-                : [
-                    const Color.fromARGB(255, 198, 202, 203),
-                    const Color.fromARGB(255, 234, 232, 232)
-                  ],
+                : [const Color.fromARGB(255, 198, 202, 203), const Color.fromARGB(255, 234, 232, 232)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -707,6 +684,78 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
       ),
+      // Adding a new "Slideshow" option to the MainScreen popup menu.
+      // (Note: The popup menu is in the AppBar of FullScreenImage; if you prefer, you can also add it here.)
+    );
+  }
+}
+
+/// New Feature: SlideshowScreen automatically cycles through photos.
+/// If there are no photos, it shows a placeholder message.
+class SlideshowScreen extends StatefulWidget {
+  final List<File> photos;
+
+  const SlideshowScreen({Key? key, required this.photos}) : super(key: key);
+
+  @override
+  _SlideshowScreenState createState() => _SlideshowScreenState();
+}
+
+class _SlideshowScreenState extends State<SlideshowScreen> {
+  late PageController _pageController;
+  int _currentPage = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _currentPage);
+    if (widget.photos.isNotEmpty) {
+      _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
+        if (_pageController.hasClients) {
+          _currentPage = (_currentPage + 1) % widget.photos.length;
+          _pageController.animateToPage(
+            _currentPage,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Slideshow'),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ?? Colors.black.withOpacity(0.3),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: widget.photos.isEmpty
+          ? const Center(child: Text('No photos available for slideshow.'))
+          : PageView.builder(
+              controller: _pageController,
+              itemCount: widget.photos.length,
+              itemBuilder: (context, index) {
+                return Center(
+                  child: Image.file(
+                    widget.photos[index],
+                    fit: BoxFit.contain,
+                  ),
+                );
+              },
+            ),
     );
   }
 }

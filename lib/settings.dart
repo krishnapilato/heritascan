@@ -42,21 +42,7 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-class SettingsScreen extends StatefulWidget {
-  final bool isDarkTheme;
-  final ValueChanged<bool> onThemeChanged;
-
-  const SettingsScreen({
-    super.key,
-    required this.isDarkTheme,
-    required this.onThemeChanged,
-  });
-
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-/// A helper widget to display section headers in the settings screen.
+/// A helper widget to display section headers.
 class SectionHeader extends StatelessWidget {
   final String title;
   const SectionHeader({Key? key, required this.title}) : super(key: key);
@@ -73,6 +59,21 @@ class SectionHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The SettingsScreen allows users to configure app appearance, directories, feedback, and more.
+class SettingsScreen extends StatefulWidget {
+  final bool isDarkTheme;
+  final ValueChanged<bool> onThemeChanged;
+
+  const SettingsScreen({
+    super.key,
+    required this.isDarkTheme,
+    required this.onThemeChanged,
+  });
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
@@ -339,6 +340,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// New Feature: Resets all settings stored in SharedPreferences.
+  Future<void> _resetAllSettings() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Reset All Settings'),
+          content: const Text(
+              'Are you sure you want to reset all settings? This will clear directories, theme settings, and any other stored preferences.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Reset'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      setState(() {
+        _photosDirectory = null;
+        _pdfsDirectory = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All settings have been reset.')),
+      );
+    }
+  }
+
+  /// New Feature: Opens a URL so the user can rate the app.
+  Future<void> _rateApp() async {
+    const url =
+        'https://play.google.com/store/apps/details?id=com.example.heritascan';
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the rating page.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -461,6 +511,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.person_rounded),
             title: const Text('Khova Krishna Pilato'),
             subtitle: const Text('Full Stack Developer'),
+          ),
+          // New "More" Section
+          const SectionHeader(title: 'More'),
+          ListTile(
+            leading: const Icon(Icons.refresh_rounded),
+            title: const Text('Reset All Settings'),
+            subtitle: const Text('Clear all saved preferences.'),
+            onTap: _resetAllSettings,
+          ),
+          ListTile(
+            leading: const Icon(Icons.star_rate_rounded),
+            title: const Text('Rate this App'),
+            subtitle: const Text('Let others know what you think.'),
+            onTap: _rateApp,
           ),
         ],
       ),

@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart'; // For taking photos
 
 import 'edit_photo.dart'; // For your FullScreenImage screen
 
@@ -49,9 +50,21 @@ class _HomeScreenState extends State<HomeScreen> {
   String _searchQuery = "";
   final TextEditingController _searchController = TextEditingController();
 
+  // Favorites tracking.
+  Set<String> _favoritePaths = {};
+  bool _showFavorites = false;
+
+  // Controls expansion of FAB (to show camera & import options)
+  bool _isFabExpanded = false;
+
   // Returns a sorted (and filtered) copy of the photos list.
   List<File> get sortedPhotos {
     List<File> list = List.from(widget.photos);
+
+    // Apply favorites filtering if enabled.
+    if (_showFavorites) {
+      list = list.where((file) => _favoritePaths.contains(file.path)).toList();
+    }
 
     // Apply search filtering if active.
     if (_isSearching && _searchQuery.isNotEmpty) {
@@ -158,6 +171,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   tooltip: allSelected ? 'Deselect All' : 'Select All',
                   onPressed: _selectAllOrNone,
                 ),
+                // NEW: Bulk favorites button.
+                IconButton(
+                  icon: Icon(
+                    _allSelectedAreFavorite() ? Icons.star : Icons.star_border,
+                  ),
+                  tooltip: _allSelectedAreFavorite()
+                      ? 'Remove from Favorites'
+                      : 'Add to Favorites',
+                  onPressed: _toggleFavoriteForSelectedPhotos,
+                ),
                 IconButton(
                   icon: const Icon(Icons.delete),
                   tooltip: 'Delete',
@@ -228,6 +251,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Text('Name: Z-A'),
                         ),
                       ],
+                    ),
+                    // Favorites filter toggle.
+                    IconButton(
+                      icon: Icon(_showFavorites
+                          ? Icons.favorite
+                          : Icons.favorite_border),
+                      tooltip:
+                          _showFavorites ? 'Show All Photos' : 'Show Favorites',
+                      onPressed: () {
+                        setState(() {
+                          _showFavorites = !_showFavorites;
+                        });
+                      },
                     ),
                     IconButton(
                       icon: const Icon(Icons.settings_rounded),
@@ -344,6 +380,30 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                   ),
                                 ),
+                              // Show individual favorite icon only when not in selection mode.
+                              if (!_selectionMode)
+                                Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        if (_favoritePaths
+                                            .contains(photo.path)) {
+                                          _favoritePaths.remove(photo.path);
+                                        } else {
+                                          _favoritePaths.add(photo.path);
+                                        }
+                                      });
+                                    },
+                                    child: Icon(
+                                      _favoritePaths.contains(photo.path)
+                                          ? Icons.star
+                                          : Icons.star_border,
+                                      color: Colors.yellowAccent,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -397,6 +457,34 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedPaths = sortedPhotos.map((photo) => photo.path).toSet();
         _selectionMode = true;
       }
+    });
+  }
+
+  // Helper: Check if all selected photos are favorites.
+  bool _allSelectedAreFavorite() {
+    final selectedPhotos =
+        sortedPhotos.where((photo) => _selectedPaths.contains(photo.path));
+    if (selectedPhotos.isEmpty) return false;
+    return selectedPhotos.every((photo) => _favoritePaths.contains(photo.path));
+  }
+
+  // Toggle favorite status for all selected photos.
+  void _toggleFavoriteForSelectedPhotos() {
+    final selectedPhotos =
+        sortedPhotos.where((photo) => _selectedPaths.contains(photo.path));
+    final allAreFavorite =
+        selectedPhotos.every((photo) => _favoritePaths.contains(photo.path));
+    setState(() {
+      for (final photo in selectedPhotos) {
+        if (allAreFavorite) {
+          _favoritePaths.remove(photo.path);
+        } else {
+          _favoritePaths.add(photo.path);
+        }
+      }
+      // Clear selection after bulk update.
+      _selectedPaths.clear();
+      _selectionMode = false;
     });
   }
 
@@ -555,6 +643,42 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<int> compressed =
         img.encodeJpg(decoded, quality: quality ?? 100);
     return Uint8List.fromList(compressed);
+  }
+
+  // Take a photo using the device camera.
+  Future<void> _takePhoto() async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.camera);
+      if (pickedFile != null) {
+        final newFile = File(pickedFile.path);
+        setState(() {
+          widget.photos.add(newFile);
+        });
+        await widget.onSave();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo added!')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error taking photo: $e')),
+      );
+    }
+  }
+
+  // Import photos via the provided callback.
+  Future<void> _importPhotos() async {
+    try {
+      await widget.onImportPhotos();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photos imported!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error importing photos: $e')),
+      );
+    }
   }
 
   // Open full-screen image editor/viewer.
