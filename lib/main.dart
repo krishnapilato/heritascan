@@ -1,761 +1,141 @@
-import 'dart:async';
-import 'dart:io';
-import 'dart:typed_data';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:image/image.dart' as img;
-import 'package:image_editor_plus/image_editor_plus.dart';
-import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
+import 'dart:async';
 
-import 'files.dart';
-import 'homepage.dart';
-import 'settings.dart';
-
-// Global app version
-const String kAppVersion = "0.1.5-alpha";
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Load initial preferences (theme, etc.)
-  final prefs = await SharedPreferences.getInstance();
-  final appName = prefs.getString('appName') ?? 'HeritaScan';
-  final bool isDarkTheme = prefs.getBool('isDarkTheme') ?? false;
-
-  runApp(MyApp(
-    initialAppName: appName,
-    initialDarkTheme: isDarkTheme,
-  ));
+void main() {
+  runApp(const MyApp());
 }
 
-/// A custom page route that provides a gentle fade transition for a modern feel.
-class FadePageRoute<T> extends PageRouteBuilder<T> {
-  FadePageRoute({
-    required WidgetBuilder builder,
-    RouteSettings? settings,
-  }) : super(
-          settings: settings,
-          pageBuilder: (context, animation, secondaryAnimation) => builder(context),
-          transitionDuration: const Duration(milliseconds: 400),
-          reverseTransitionDuration: const Duration(milliseconds: 300),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final fadeIn = CurvedAnimation(parent: animation, curve: Curves.easeInOut);
-            return FadeTransition(
-              opacity: fadeIn,
-              child: child,
-            );
-          },
-        );
-}
-
-/// SplashScreen widget that displays a logo for 3 seconds.
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
-  
-  @override
-  _SplashScreenState createState() => _SplashScreenState();
-}
-  
-class _SplashScreenState extends State<SplashScreen> {
-  @override
-  void initState() {
-    super.initState();
-    // Delay for 3 seconds then navigate to InitialScreen.
-    Future.delayed(const Duration(seconds: 3), () {
-      Navigator.pushReplacementNamed(context, '/');
-    });
-  }
-  
-  @override
-  Widget build(BuildContext context) {
-    // Replace with your logo asset or any widget you like.
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF4B9BE0), Color(0xFF98DBC6)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Replace this Icon with your logo image if desired.
-              Icon(
-                Icons.camera_alt_rounded,
-                size: 100,
-                color: Colors.white,
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'HeritaScan',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The root widget of the application.
-class MyApp extends StatefulWidget {
-  final String initialAppName;
-  final bool initialDarkTheme;
-
-  const MyApp({
-    Key? key,
-    required this.initialAppName,
-    required this.initialDarkTheme,
-  }) : super(key: key);
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-
-  static Future<SharedPreferences> get prefs async => SharedPreferences.getInstance();
-}
-
-class _MyAppState extends State<MyApp> {
-  late String _appName;
-  late bool _isDarkTheme;
-
-  @override
-  void initState() {
-    super.initState();
-    _appName = widget.initialAppName;
-    _isDarkTheme = widget.initialDarkTheme;
-  }
-
-  /// Toggle or set the dark theme and persist it.
-  Future<void> setDarkTheme(bool value) async {
-    setState(() {
-      _isDarkTheme = value;
-    });
-    final prefs = await MyApp.prefs;
-    await prefs.setBool('isDarkTheme', _isDarkTheme);
-  }
-
-  /// A custom on-generate-route to apply the fade transition to all page navigations.
-  Route<dynamic> _onGenerateRoute(RouteSettings settings) {
-    switch (settings.name) {
-      case '/splash':
-        return FadePageRoute(builder: (_) => const SplashScreen());
-      case '/':
-        return FadePageRoute(builder: (_) => const InitialScreen());
-      case '/setup':
-        return FadePageRoute(builder: (_) => const SetupScreen());
-      case '/main':
-        return FadePageRoute(
-          builder: (_) => MainScreen(
-            onToggleTheme: setDarkTheme,
-            isDarkTheme: _isDarkTheme,
-          ),
-        );
-      case '/settings':
-        return FadePageRoute(
-          builder: (_) => SettingsScreen(
-            isDarkTheme: _isDarkTheme,
-            onThemeChanged: setDarkTheme,
-          ),
-        );
-      default:
-        return FadePageRoute(builder: (_) => const InitialScreen());
-    }
-  }
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // Reflect the stored app name in the MaterialApp title.
-      title: 'HeritaScan',
-
-      themeMode: _isDarkTheme ? ThemeMode.dark : ThemeMode.light,
-
-      // LIGHT THEME
+      title: 'Flutter Demo',
       theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4B9BE0),
-          brightness: Brightness.light,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blueAccent,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.white),
-        ),
-        iconTheme: const IconThemeData(color: Colors.black),
       ),
-
-      // DARK THEME
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4B9BE0),
-          brightness: Brightness.dark,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blueAccent,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.white),
-        ),
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-
-      initialRoute: '/splash',
-      onGenerateRoute: _onGenerateRoute,
-      debugShowCheckedModeBanner: false,
+      home: const SplashScreen(),
     );
   }
 }
 
-/// The InitialScreen checks if the necessary directories are set.
-/// If not, it navigates to the SetupScreen; otherwise, it proceeds to MainScreen.
-class InitialScreen extends StatefulWidget {
-  const InitialScreen({Key? key}) : super(key: key);
+// Define your translations as a map
+const Map<String, Map<String, String>> translations = {
+  'en': {
+    'welcome': 'Welcome to Inspirely!',
+    'splashMessage': 'Inspiring innovation every day.',
+  },
+  'es': {
+    'welcome': '¡Bienvenido a Inspirely!',
+    'splashMessage': 'Inspirando innovación todos los días.',
+  },
+  'it': {
+    'welcome': 'Benvenuto su Inspirely!',
+    'splashMessage': 'Ispirando innovazione ogni giorno.',
+  },
+};
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
 
   @override
-  State<InitialScreen> createState() => _InitialScreenState();
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _InitialScreenState extends State<InitialScreen> {
-  Future<void> _checkSetup() async {
-    final prefs = await SharedPreferences.getInstance();
-    final photosDir = prefs.getString('photosDirectory');
-    final pdfsDir = prefs.getString('pdfsDirectory');
-
-    if (photosDir == null || pdfsDir == null) {
-      Navigator.pushReplacementNamed(context, '/setup');
-    } else {
-      Navigator.pushReplacementNamed(context, '/main');
-    }
-  }
+class _SplashScreenState extends State<SplashScreen> {
+  late String currentLanguage;
+  late String welcomeText;
+  late String splashMessage;
 
   @override
   void initState() {
     super.initState();
-    _checkSetup();
+    _detectLanguage();
+    _navigateToHome();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      // You can show a simple loading screen or blank gradient.
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color.fromARGB(255, 7, 7, 7), Color.fromARGB(255, 2, 2, 2)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+  void _detectLanguage() {
+    // Detect the system language
+    final String systemLanguage =
+        WidgetsBinding.instance.window.locale.languageCode;
+
+    // Fallback to English if the language is not supported
+    currentLanguage ='it';
+
+    // Set translated text
+    welcomeText = translations[currentLanguage]!['welcome']!;
+    splashMessage = translations[currentLanguage]!['splashMessage']!;
+  }
+
+  void _navigateToHome() {
+    // Navigate to the next screen after 7 seconds
+    Timer(const Duration(seconds: 7), () {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              const MyHomePage(title: 'Flutter Demo Home Page'),
         ),
-      ),
-    );
-  }
-}
-
-/// The SetupScreen allows users to select directories for storing photos and PDFs.
-class SetupScreen extends StatefulWidget {
-  const SetupScreen({Key? key}) : super(key: key);
-
-  @override
-  _SetupScreenState createState() => _SetupScreenState();
-}
-
-class _SetupScreenState extends State<SetupScreen> {
-  String? _photosDirectory;
-  String? _pdfsDirectory;
-
-  Future<void> _pickDirectory(String type) async {
-    final selectedDirectory = await FilePicker.platform.getDirectoryPath();
-    if (selectedDirectory == null) return;
-
-    setState(() {
-      if (type == 'photos') {
-        _photosDirectory = selectedDirectory;
-      } else if (type == 'pdfs') {
-        _pdfsDirectory = selectedDirectory;
-      }
-    });
-  }
-
-  Future<void> _saveDirectories() async {
-    if (_photosDirectory == null || _pdfsDirectory == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select both directories.')),
       );
-      return;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('photosDirectory', _photosDirectory!);
-    await prefs.setString('pdfsDirectory', _pdfsDirectory!);
-
-    Navigator.pushReplacementNamed(context, '/main');
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF98DBC6), Color(0xFFFFF1C1)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              AppBar(
-                title: const Text('Setup Directories'),
-                backgroundColor: Colors.transparent,
-                centerTitle: true,
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      // Photos Directory
-                      Card(
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: ListTile(
-                          leading: const Icon(Icons.photo_library),
-                          title: const Text('Select Photos Directory'),
-                          subtitle: Text(
-                            _photosDirectory ?? 'No directory selected',
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          trailing: ElevatedButton(
-                            onPressed: () => _pickDirectory('photos'),
-                            child: const Text('Choose'),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      // PDFs Directory
-                      Card(
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: ListTile(
-                          leading: const Icon(Icons.folder_shared),
-                          title: const Text('Select PDFs Directory'),
-                          subtitle: Text(
-                            _pdfsDirectory ?? 'No directory selected',
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          trailing: ElevatedButton(
-                            onPressed: () => _pickDirectory('pdfs'),
-                            child: const Text('Choose'),
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      // Save Settings Button
-                      ElevatedButton(
-                        onPressed: _saveDirectories,
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 50),
-                        ),
-                        child: const Text('Save Settings'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The MainScreen hosts the primary functionalities of the app, including Home and Files tabs.
-/// The bottom navigation bar now includes three items:
-/// - Index 0: HomeScreen (images)
-/// - Index 1: Photo action (to upload/take a photo)
-/// - Index 2: FilesScreen (PDFs)
-///
-/// New Feature: A popup menu option “Start Slideshow” that opens a SlideshowScreen.
-class MainScreen extends StatefulWidget {
-  final ValueChanged<bool> onToggleTheme;
-  final bool isDarkTheme;
-
-  const MainScreen({
-    Key? key,
-    required this.onToggleTheme,
-    required this.isDarkTheme,
-  }) : super(key: key);
-
-  @override
-  State<MainScreen> createState() => _MainScreenState();
-}
-
-class _MainScreenState extends State<MainScreen> {
-  // _selectedScreenIndex: 0 for HomeScreen, 1 for FilesScreen.
-  int _selectedScreenIndex = 0;
-  final List<File> _photos = [];
-  final List<File> _pdfs = [];
-
-  String? _photosDirectory;
-  String? _pdfsDirectory;
-
-  final ImagePicker _picker = ImagePicker();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadDirectories().then((_) {
-      _loadPhotos();
-      _loadPdfs();
-    });
-  }
-
-  /// Loads the directories from SharedPreferences.
-  Future<void> _loadDirectories() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _photosDirectory = prefs.getString('photosDirectory');
-      _pdfsDirectory = prefs.getString('pdfsDirectory');
-    });
-  }
-
-  /// Saves the current list of photos to SharedPreferences.
-  Future<void> _savePhotos() async {
-    if (_photosDirectory == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    final photoPaths = _photos.map((file) => file.path).toList();
-    await prefs.setStringList('photos', photoPaths);
-  }
-
-  /// Loads the list of photos from SharedPreferences.
-  Future<void> _loadPhotos() async {
-    if (_photosDirectory == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    final photoPaths = prefs.getStringList('photos') ?? [];
-    setState(() {
-      _photos.addAll(photoPaths.map((path) => File(path)));
-    });
-  }
-
-  /// Saves the current list of PDFs to SharedPreferences.
-  Future<void> _savePdfs() async {
-    if (_pdfsDirectory == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    final pdfPaths = _pdfs.map((file) => file.path).toList();
-    await prefs.setStringList('pdfs', pdfPaths);
-  }
-
-  /// Loads the list of PDFs from SharedPreferences.
-  Future<void> _loadPdfs() async {
-    if (_pdfsDirectory == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    final pdfPaths = prefs.getStringList('pdfs') ?? [];
-    setState(() {
-      _pdfs.addAll(pdfPaths.map((path) => File(path)));
-    });
-  }
-
-  Future<void> _choosePhotoOption() async {
-    final String? option = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Image source'),
-          content: const Text('Would you like to upload or capture?'),
-          actions: [
-            TextButton.icon(
-              onPressed: () => Navigator.pop(context, 'upload'),
-              icon: const Icon(Icons.upload_file_rounded),
-              label: const Text('Upload'),
+      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+      body: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Display the GIF
+          Center(
+            child: Image.asset(
+              'assets/animation.gif',
+              width: 300,
+              height: 500,
             ),
-            TextButton.icon(
-              onPressed: () => Navigator.pop(context, 'take'),
-              icon: const Icon(Icons.camera_alt_rounded),
-              label: const Text('Take new photo'),
+          ),
+          const SizedBox(height: 20),
+          // Display the dynamic welcome text
+          Text(
+            welcomeText,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
             ),
-          ],
-        );
-      },
-    );
-
-    if (option == 'upload') {
-      await _uploadPhoto();
-    } else if (option == 'take') {
-      await _takeNewPhoto();
-    }
-  }
-
-  /// Takes a new photo using the camera.
-  Future<void> _takeNewPhoto() async {
-    try {
-      final XFile? imageFile = await _picker.pickImage(source: ImageSource.camera);
-      if (imageFile == null) return;
-
-      final Uint8List imageBytes = await imageFile.readAsBytes();
-      final Directory photosDir = Directory(_photosDirectory!);
-      if (!await photosDir.exists()) {
-        await photosDir.create(recursive: true);
-      }
-      final String newPath = '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final File savedPhoto = await File(newPath).writeAsBytes(imageBytes);
-
-      setState(() {
-        _photos.add(savedPhoto);
-      });
-      await _savePhotos();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Photo taken and saved successfully!')),
-      );
-    } catch (e) {
-      debugPrint('Error taking photo: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error taking photo: $e')),
-      );
-    }
-  }
-
-  /// Uploads an image from the gallery.
-  Future<void> _uploadPhoto() async {
-    try {
-      final XFile? imageFile = await _picker.pickImage(source: ImageSource.gallery);
-      if (imageFile == null) return;
-
-      final Uint8List imageBytes = await imageFile.readAsBytes();
-      final Directory photosDir = Directory(_photosDirectory!);
-      if (!await photosDir.exists()) {
-        await photosDir.create(recursive: true);
-      }
-      final String newPath = '${photosDir.path}/photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final File savedPhoto = await File(newPath).writeAsBytes(imageBytes);
-
-      setState(() {
-        _photos.add(savedPhoto);
-      });
-      await _savePhotos();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Photo uploaded and saved successfully!')),
-      );
-    } catch (e) {
-      debugPrint('Error uploading photo: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error uploading photo: $e')),
-      );
-    }
-  }
-
-  /// Import photos from the device gallery into the photos directory.
-  Future<void> _importPhotos() async {
-    try {
-      final pickedFiles = await _picker.pickMultiImage();
-      if (pickedFiles == null || pickedFiles.isEmpty) return;
-
-      final Directory photosDir = Directory(_photosDirectory!);
-      if (!await photosDir.exists()) {
-        await photosDir.create(recursive: true);
-      }
-
-      for (var pickedFile in pickedFiles) {
-        final File oldFile = File(pickedFile.path);
-        if (await oldFile.exists()) {
-          final String newPath = '${photosDir.path}/imported_${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
-          final File savedPhoto = await oldFile.copy(newPath);
-          setState(() => _photos.add(savedPhoto));
-        }
-      }
-
-      await _savePhotos();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Photos imported successfully!')),
-      );
-    } catch (e) {
-      debugPrint('Error importing photos: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error importing photos: $e')),
-      );
-    }
-  }
-
-  /// Navigation logic for the bottom navigation bar.
-  /// - Index 0: Home screen.
-  /// - Index 1: Take Photo action (does not change the current screen).
-  /// - Index 2: Files screen.
-  void _onNavIndexChanged(int newIndex) {
-    if (newIndex == 1) {
-      _choosePhotoOption();
-      return;
-    }
-    setState(() {
-      _selectedScreenIndex = newIndex == 0 ? 0 : 1;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screens = [
-      HomeScreen(
-        photos: _photos,
-        onSave: _savePhotos,
-        onPdfGenerated: (pdf) {
-          setState(() => _pdfs.add(pdf));
-          _savePdfs();
-        },
-        photosDirectory: _photosDirectory,
-        pdfsDirectory: _pdfsDirectory,
-        onImportPhotos: _importPhotos,
-      ),
-      FilesScreen(pdfs: _pdfs),
-    ];
-
-    int navBarSelectedIndex = _selectedScreenIndex == 0 ? 0 : 2;
-
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: widget.isDarkTheme
-                ? [const Color(0xFF181818), const Color(0xFF434343)]
-                : [const Color.fromARGB(255, 198, 202, 203), const Color.fromARGB(255, 234, 232, 232)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
           ),
-        ),
-        child: screens[_selectedScreenIndex],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navBarSelectedIndex,
-        onDestinationSelected: _onNavIndexChanged,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.collections_bookmark_rounded),
-            label: 'Images',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.document_scanner_rounded),
-            label: 'Photo',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.folder_shared_rounded),
-            label: 'Files',
+          const SizedBox(height: 10),
+          // Display the dynamic splash message
+          Text(
+            splashMessage,
+            style: const TextStyle(
+              fontSize: 18,
+              color: Colors.black54,
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
-      // Adding a new "Slideshow" option to the MainScreen popup menu.
-      // (Note: The popup menu is in the AppBar of FullScreenImage; if you prefer, you can also add it here.)
     );
   }
 }
 
-/// New Feature: SlideshowScreen automatically cycles through photos.
-/// If there are no photos, it shows a placeholder message.
-class SlideshowScreen extends StatefulWidget {
-  final List<File> photos;
-
-  const SlideshowScreen({Key? key, required this.photos}) : super(key: key);
-
-  @override
-  _SlideshowScreenState createState() => _SlideshowScreenState();
-}
-
-class _SlideshowScreenState extends State<SlideshowScreen> {
-  late PageController _pageController;
-  int _currentPage = 0;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController(initialPage: _currentPage);
-    if (widget.photos.isNotEmpty) {
-      _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
-        if (_pageController.hasClients) {
-          _currentPage = (_currentPage + 1) % widget.photos.length;
-          _pageController.animateToPage(
-            _currentPage,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut,
-          );
-        }
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _pageController.dispose();
-    super.dispose();
-  }
+class MyHomePage extends StatelessWidget {
+  const MyHomePage({super.key, required this.title});
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Slideshow'),
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor ?? Colors.black.withOpacity(0.3),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+        title: Text(title),
       ),
-      body: widget.photos.isEmpty
-          ? const Center(child: Text('No photos available for slideshow.'))
-          : PageView.builder(
-              controller: _pageController,
-              itemCount: widget.photos.length,
-              itemBuilder: (context, index) {
-                return Center(
-                  child: Image.file(
-                    widget.photos[index],
-                    fit: BoxFit.contain,
-                  ),
-                );
-              },
-            ),
+      body: Center(
+        child: const Text('Welcome to the Home Page!'),
+      ),
     );
   }
 }
